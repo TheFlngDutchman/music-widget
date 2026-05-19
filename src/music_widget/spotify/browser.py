@@ -18,6 +18,7 @@ from music_widget import player as player_mod
 from music_widget.spotify import api as sp_api
 from music_widget.spotify import auth as sp_auth
 from music_widget.spotify import library as sp_library
+from music_widget.spotify import pagination as sp_pagination
 from music_widget.spotify import search as sp_search
 from music_widget.spotify import streaming as sp_streaming
 from music_widget.ui.helpers import (
@@ -43,6 +44,12 @@ class SpotifyBrowser(Gtk.Box):
         self._nav: list[tuple[str, list[dict]]] = []
         self._context_uri: str | None = None  # current playlist/album context for play
         self._port = int(cfg_mod.load()["spotify"]["redirect_port"])
+        # When non-None, the bottom-of-list scroll handler fetches the next
+        # page through it. Cleared when navigating to non-paginated views
+        # (search, album tracks, artist top tracks).
+        self._page_ctx: sp_pagination.PageContext | None = None
+        self._loading_more = False
+        self._loader_row: Gtk.ListBoxRow | None = None
         self._build()
         # Try cached auth shortly after construction so the widget loads fast
         GLib.timeout_add(100, self._try_cached_auth)
@@ -191,6 +198,10 @@ class SpotifyBrowser(Gtk.Box):
         # Don't let the ListBox's natural content height push the layer
         # surface taller — the scrollbar handles overflow.
         scroll.set_propagate_natural_height(False)
+        # Infinite-scroll: when the user reaches the bottom and a paginated
+        # context is active, fetch the next page.
+        scroll.connect("edge-reached", self._on_edge_reached)
+        self._scroll = scroll
 
         self._list = Gtk.ListBox()
         self._list.set_selection_mode(Gtk.SelectionMode.SINGLE)
@@ -341,23 +352,13 @@ class SpotifyBrowser(Gtk.Box):
             self._items.append(entry)
         # Loading placeholder for playlists
         self._list.append(loading_row("Loading playlists…"))
-        threading.Thread(target=self._fetch_playlists, daemon=True).start()
+        self._page_ctx = sp_pagination.playlists_page(self._sp)
+        threading.Thread(target=self._fetch_home_playlists, daemon=True).start()
         return False
 
-    def _fetch_playlists(self):
+    def _fetch_home_playlists(self):
         try:
-            res = self._sp.current_user_playlists(limit=50)
-            playlists = [
-                {
-                    "t": "pl",
-                    "id": p["id"],
-                    "uri": p.get("uri", f"spotify:playlist:{p['id']}"),
-                    "name": p["name"],
-                    "icon": "󰲸",
-                }
-                for p in res["items"]
-                if p
-            ]
+            playlists = self._page_ctx.fetch_first()
             GLib.idle_add(self._render_home, playlists)
         except Exception as e:
             GLib.idle_add(self._show_fetch_error, str(e))
@@ -385,6 +386,7 @@ class SpotifyBrowser(Gtk.Box):
             row.item = pl
             self._list.append(row)
             self._items.append(pl)
+        self._refresh_loader_row()
         return False
 
     # ── Generic list rendering ─────────────────────────────────────────
@@ -407,11 +409,81 @@ class SpotifyBrowser(Gtk.Box):
             row = list_row(item["icon"], item["name"], item.get("sub"))
             row.item = item
             self._list.append(row)
+        self._refresh_loader_row()
+        return False
+
+    # ── Pagination glue ────────────────────────────────────────────────
+
+    def _refresh_loader_row(self) -> None:
+        """Show or hide the spinner row at the bottom of the list based on
+        whether the current page context has more results to fetch."""
+        # Drop any prior loader row first (we'll re-append fresh if needed)
+        if self._loader_row is not None:
+            try:
+                self._list.remove(self._loader_row)
+            except Exception:
+                pass
+            self._loader_row = None
+        ctx = self._page_ctx
+        if ctx is None or not ctx.has_more:
+            return
+        row = loading_row("Loading more…")
+        self._loader_row = row
+        self._list.append(row)
+
+    def _on_edge_reached(self, _scroll, pos):
+        if pos != Gtk.PositionType.BOTTOM:
+            return
+        ctx = self._page_ctx
+        if ctx is None or not ctx.has_more or ctx.loading or self._loading_more:
+            return
+        self._loading_more = True
+        threading.Thread(target=self._fetch_more_thread, args=(ctx,), daemon=True).start()
+
+    def _fetch_more_thread(self, ctx):
+        try:
+            items = ctx.fetch_next()
+        except Exception as e:
+            err = str(e)
+            GLib.idle_add(self._on_more_error, err)
+            return
+        GLib.idle_add(self._on_more_loaded, items)
+
+    def _on_more_loaded(self, items):
+        # Append before the loader row, then refresh it (drops it if exhausted).
+        if self._loader_row is not None:
+            try:
+                self._list.remove(self._loader_row)
+            except Exception:
+                pass
+            self._loader_row = None
+        for item in items:
+            row = list_row(item["icon"], item["name"], item.get("sub"))
+            row.item = item
+            self._list.append(row)
+            self._items.append(item)
+        self._loading_more = False
+        self._refresh_loader_row()
+        return False
+
+    def _on_more_error(self, msg: str):
+        # Leave already-fetched items in place; just stop the spinner and
+        # surface a tiny error row in its place.
+        if self._loader_row is not None:
+            try:
+                self._list.remove(self._loader_row)
+            except Exception:
+                pass
+            self._loader_row = None
+        self._list.append(error_row(msg))
+        self._loading_more = False
         return False
 
     def _show_grouped(self, groups: list[tuple[str, list[dict]]], label: str):
         self._crumb.set_text(label)
         clear_listbox(self._list)
+        self._page_ctx = None
+        self._loader_row = None
         flat = []
         for header, items in groups:
             if not items:
@@ -506,32 +578,40 @@ class SpotifyBrowser(Gtk.Box):
 
     # ── Fetchers (run on background threads) ───────────────────────────
 
-    def _fetch_playlist_tracks(self, pid: str):
+    def _fetch_paginated(self, ctx, label: str):
+        """Common path for paginated list views."""
         GLib.idle_add(self._show_loading)
+        self._page_ctx = ctx
         try:
-            res = self._sp.playlist_items(pid, limit=100)
-            items = []
-            for t in res["items"]:
-                if not t or not t.get("track"):
-                    continue
-                tr = t["track"]
-                artists = ", ".join(a["name"] for a in tr.get("artists", []))
-                items.append(
-                    {
-                        "t": "track",
-                        "id": tr["id"],
-                        "uri": tr["uri"],
-                        "name": tr["name"],
-                        "sub": artists,
-                        "icon": "󰝚",
-                    }
-                )
-            GLib.idle_add(self._show, items, "Tracks")
+            items = ctx.fetch_first()
         except Exception as e:
             GLib.idle_add(self._show_fetch_error, str(e))
+            return
+        GLib.idle_add(self._show, items, label)
+
+    def _fetch_playlist_tracks(self, pid: str):
+        self._fetch_paginated(
+            sp_pagination.playlist_tracks_page(self._sp, pid), "Tracks"
+        )
+
+    def _fetch_liked(self):
+        self._fetch_paginated(sp_pagination.liked_page(self._sp), "Liked Songs")
+
+    def _fetch_saved_albums(self):
+        self._fetch_paginated(
+            sp_pagination.saved_albums_page(self._sp), "Saved Albums"
+        )
+
+    def _fetch_recent(self):
+        self._fetch_paginated(
+            sp_pagination.recently_played_page(self._sp), "Recently Played"
+        )
 
     def _fetch_album_tracks(self, album_id: str):
+        """Album tracks aren't paginated in our UI — albums rarely exceed
+        50 tracks and the spotipy endpoint returns the lot."""
         GLib.idle_add(self._show_loading)
+        self._page_ctx = None
         try:
             items = sp_library.fetch_album_tracks(self._sp, album_id)
             GLib.idle_add(self._show, items, "Album")
@@ -540,33 +620,10 @@ class SpotifyBrowser(Gtk.Box):
 
     def _fetch_artist_tracks(self, artist_id: str):
         GLib.idle_add(self._show_loading)
+        self._page_ctx = None
         try:
             items = sp_search.fetch_artist_top_tracks(self._sp, artist_id)
             GLib.idle_add(self._show, items, "Top Tracks")
-        except Exception as e:
-            GLib.idle_add(self._show_fetch_error, str(e))
-
-    def _fetch_liked(self):
-        GLib.idle_add(self._show_loading)
-        try:
-            items = sp_library.fetch_liked(self._sp)
-            GLib.idle_add(self._show, items, "Liked Songs")
-        except Exception as e:
-            GLib.idle_add(self._show_fetch_error, str(e))
-
-    def _fetch_saved_albums(self):
-        GLib.idle_add(self._show_loading)
-        try:
-            items = sp_library.fetch_saved_albums(self._sp)
-            GLib.idle_add(self._show, items, "Saved Albums")
-        except Exception as e:
-            GLib.idle_add(self._show_fetch_error, str(e))
-
-    def _fetch_recent(self):
-        GLib.idle_add(self._show_loading)
-        try:
-            items = sp_library.fetch_recent(self._sp)
-            GLib.idle_add(self._show, items, "Recently Played")
         except Exception as e:
             GLib.idle_add(self._show_fetch_error, str(e))
 
@@ -580,6 +637,7 @@ class SpotifyBrowser(Gtk.Box):
             self._push_nav(f"Search: {query[:30]}")
         else:
             self._crumb.set_text(f"Search: {query[:30]}")
+        self._page_ctx = None
         threading.Thread(target=self._do_search, args=(query,), daemon=True).start()
 
     def _do_search(self, query: str):

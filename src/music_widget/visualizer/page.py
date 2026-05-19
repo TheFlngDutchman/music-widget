@@ -111,7 +111,22 @@ class VisualizerPage(Gtk.Box):
         return row, content
 
     def _row_style(self) -> Gtk.Box:
-        row, content = self._row("Style")
+        # Styles wrap onto multiple lines once we exceed what fits horizontally.
+        row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        row.add_css_class("mw-vis-popover-row")
+        lbl = Gtk.Label(label="Style")
+        lbl.set_halign(Gtk.Align.START)
+        lbl.add_css_class("mw-vis-popover-lbl")
+        row.append(lbl)
+
+        flow = Gtk.FlowBox()
+        flow.set_selection_mode(Gtk.SelectionMode.NONE)
+        flow.set_max_children_per_line(4)
+        flow.set_column_spacing(2)
+        flow.set_row_spacing(2)
+        flow.set_homogeneous(True)
+        row.append(flow)
+
         first = None
         self._style_btns: dict[str, Gtk.ToggleButton] = {}
         for name in STYLE_NAMES:
@@ -124,7 +139,7 @@ class VisualizerPage(Gtk.Box):
             b.set_active(name == self._cfg["style"])
             b.connect("toggled", self._on_style, name)
             self._style_btns[name] = b
-            content.append(b)
+            flow.append(b)
         return row
 
     def _row_bars(self) -> Gtk.Box:
