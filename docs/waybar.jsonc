@@ -1,0 +1,41 @@
+// music-widget — Waybar snippet.
+//
+// Add the four "custom/music-*" entries to your modules-right list,
+// then paste the module definitions below into ~/.config/waybar/config.jsonc.
+
+{
+  "modules-right": [
+    "custom/music-prev",
+    "custom/music-play",
+    "custom/music-next",
+    "custom/music-title"
+    // ... your other modules ...
+  ],
+
+  "custom/music-prev": {
+    "format": "󰒮   ",
+    "on-click": "playerctl --player=spotifyd,spotify,mpd previous",
+    "tooltip": false
+  },
+
+  "custom/music-play": {
+    "exec": "playerctl --player=spotifyd,spotify,mpd status -F | sed -u 's/Playing/󰏤/;s/Paused/󰐊/;s/Stopped/󰐊/'",
+    "return-type": "raw",
+    "on-click": "playerctl --player=spotifyd,spotify,mpd play-pause",
+    "tooltip": false
+  },
+
+  "custom/music-next": {
+    "format": "   󰒭  ",
+    "on-click": "playerctl --player=spotifyd,spotify,mpd next",
+    "tooltip": false
+  },
+
+  "custom/music-title": {
+    "exec": "music-waybar-title",
+    "return-type": "raw",
+    "max-length": 30,
+    "on-click": "music-widget",
+    "tooltip": false
+  }
+}

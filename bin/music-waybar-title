@@ -1,0 +1,12 @@
+#!/bin/bash
+# Stream the current track title for Waybar.
+# Loops so it picks up players that connect after the bar starts.
+
+echo "󰝚"
+while true; do
+    playerctl --player=spotifyd,spotify,mpd metadata title -F 2>/dev/null | \
+        awk '{print ($0 == "" ? "󰝚" : $0); fflush()}'
+    # playerctl exited (no player or player disconnected) — retry after a pause.
+    echo "󰝚"
+    sleep 2
+done

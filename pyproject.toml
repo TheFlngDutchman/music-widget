@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "music-widget"
+version = "0.1.0"
+description = "Self-contained Waybar music popup for Omarchy — Spotify (spotifyd) + MPD, with a customizable cava visualizer"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "shobert" }]
+dependencies = [
+    "spotipy>=2.24,<3",
+    "python-mpd2>=3.1,<4",
+]
+
+[project.scripts]
+music-widget = "music_widget.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/music_widget"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"data/style.css" = "share/music-widget/style.css"
+"data/default-config.toml" = "share/music-widget/default-config.toml"
+"data/cava.conf" = "share/music-widget/cava.conf"

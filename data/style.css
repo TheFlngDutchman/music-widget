@@ -1,0 +1,215 @@
+* {
+    font-family: 'JetBrainsMono Nerd Font', monospace;
+    font-size: 12px;
+}
+
+.mw-root {
+    background-color: @window_bg_color;
+    border-radius: 6px;
+    border: 1px solid @borders;
+}
+
+.mw-hdr-lbl {
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    color: @window_fg_color;
+    opacity: 0.5;
+}
+.mw-close-btn {
+    background: none;
+    border: none;
+    padding: 2px 7px;
+    opacity: 0.4;
+    min-height: 0;
+    min-width: 0;
+    border-radius: 4px;
+    color: @window_fg_color;
+}
+.mw-close-btn:hover { opacity: 1; background: alpha(@window_fg_color, 0.08); }
+
+/* Page tabs */
+.mw-page-tab {
+    background: none;
+    border: none;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    padding: 5px 4px;
+    font-size: 11px;
+    color: @window_fg_color;
+    opacity: 0.45;
+    transition: opacity 120ms, border-color 120ms;
+}
+.mw-page-tab:checked {
+    opacity: 1;
+    color: @accent_color;
+    border-bottom-color: @accent_color;
+    background: none;
+}
+.mw-page-tab:hover { opacity: 0.75; background: none; }
+
+/* Album art */
+.mw-art-ph {
+    font-size: 38px;
+    color: @window_fg_color;
+    opacity: 0.18;
+    min-width: 96px;
+    min-height: 96px;
+}
+.mw-art { border-radius: 6px; }
+
+/* Track info */
+.mw-track-title  { font-size: 13px; font-weight: bold; color: @window_fg_color; }
+.mw-track-artist { font-size: 11px; color: @window_fg_color; opacity: 0.6; }
+.mw-time         { font-size: 10px; color: @window_fg_color; opacity: 0.4; }
+
+/* Seek bar */
+.mw-seek trough   { background-color: alpha(@window_fg_color, 0.12); min-height: 3px; border-radius: 2px; }
+.mw-seek highlight { background-color: @accent_bg_color; border-radius: 2px; }
+.mw-seek slider    { background-color: @window_fg_color; min-width: 10px; min-height: 10px; border-radius: 50%; margin: -4px; }
+
+/* Controls */
+.mw-ctrl-btn {
+    background: none;
+    border: none;
+    padding: 5px 10px;
+    font-size: 18px;
+    min-height: 0;
+    min-width: 0;
+    border-radius: 5px;
+    color: @window_fg_color;
+}
+.mw-ctrl-btn:hover { background: alpha(@window_fg_color, 0.08); }
+
+/* Volume */
+.mw-vol-icon { font-size: 13px; color: @window_fg_color; opacity: 0.5; margin-left: 8px; }
+.mw-vol trough    { background-color: alpha(@window_fg_color, 0.12); min-height: 3px; border-radius: 2px; }
+.mw-vol highlight  { background-color: @accent_color; border-radius: 2px; }
+.mw-vol slider     { background-color: @window_fg_color; min-width: 8px; min-height: 8px; border-radius: 50%; margin: -3px; }
+
+/* Visualizer */
+.mw-vis-now {
+    font-size: 11px;
+    color: @window_fg_color;
+    opacity: 0.55;
+    font-style: italic;
+}
+.mw-vis-gear {
+    background: none;
+    border: none;
+    padding: 2px 8px;
+    font-size: 14px;
+    color: @window_fg_color;
+    opacity: 0.5;
+    min-height: 0;
+    min-width: 0;
+    border-radius: 4px;
+}
+.mw-vis-gear:hover { opacity: 1; background: alpha(@window_fg_color, 0.08); }
+.mw-vis-popover {
+    padding: 10px 12px;
+}
+.mw-vis-popover-row {
+    margin: 4px 0;
+}
+.mw-vis-popover-lbl {
+    font-size: 11px;
+    color: @window_fg_color;
+    opacity: 0.7;
+    min-width: 90px;
+}
+.mw-vis-style-btn {
+    background: none;
+    border: none;
+    padding: 2px 10px;
+    font-size: 10px;
+    min-height: 0;
+    min-width: 0;
+    color: @window_fg_color;
+    opacity: 0.38;
+    border-radius: 3px;
+}
+.mw-vis-style-btn:checked {
+    opacity: 1;
+    color: @accent_color;
+    background: alpha(@window_fg_color, 0.07);
+}
+
+/* Playlists tabs */
+.mw-tab {
+    background: none;
+    border: none;
+    padding: 3px 10px;
+    font-size: 11px;
+    min-height: 0;
+    min-width: 0;
+    color: @window_fg_color;
+    opacity: 0.45;
+    border-radius: 4px;
+}
+.mw-tab:checked { opacity: 1; background: alpha(@window_fg_color, 0.08); color: @accent_color; }
+
+/* Search */
+.mw-search {
+    background-color: alpha(@window_fg_color, 0.07);
+    border: 1px solid @borders;
+    border-radius: 4px;
+    padding: 2px 8px;
+    min-height: 0;
+    font-size: 11px;
+    color: @window_fg_color;
+}
+.mw-search:focus { background-color: alpha(@window_fg_color, 0.10); outline: none; }
+
+/* List */
+.mw-list { background: none; }
+.mw-list row { background: none; border-radius: 3px; color: @window_fg_color; }
+.mw-list row:hover    { background: alpha(@window_fg_color, 0.05); }
+.mw-list row:selected { background: alpha(@window_fg_color, 0.10); }
+.mw-list-icon { font-size: 13px; opacity: 0.5; min-width: 22px; color: @accent_color; }
+.mw-list-sub  { font-size: 10px; color: @window_fg_color; opacity: 0.4; }
+
+/* Nav / breadcrumb */
+.mw-crumb     { font-size: 11px; font-weight: bold; color: @window_fg_color; opacity: 0.6; }
+.mw-nav-arrow { font-size: 12px; color: @accent_color; opacity: 0.85; min-width: 16px; }
+.mw-nav-row {
+    background: none; border: none; border-radius: 4px;
+    min-height: 0; min-width: 0;
+}
+.mw-nav-row:hover   { background: alpha(@window_fg_color, 0.07); }
+.mw-nav-row:disabled { opacity: 0.45; }
+.mw-nav-btn {
+    background: none; border: none; padding: 1px 5px;
+    min-height: 0; min-width: 0; color: @window_fg_color; opacity: 0.5; border-radius: 3px;
+}
+.mw-nav-btn:hover { opacity: 1; background: alpha(@window_fg_color, 0.08); }
+
+/* Path entry */
+.mw-path-entry { font-size: 11px; min-height: 0; padding: 3px 6px; border-radius: 4px; }
+
+/* Misc */
+.mw-section-lbl { font-size: 13px; font-weight: bold; color: @window_fg_color; opacity: 0.75; }
+.mw-note        { font-size: 10px; color: @window_fg_color; opacity: 0.4; }
+.mw-action-btn  {
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
+    border: none; border-radius: 4px;
+    padding: 6px 18px; font-weight: bold; min-height: 0;
+}
+.mw-action-btn:hover { background-color: @accent_color; }
+
+/* Spotify auth */
+.mw-uri-display {
+    background-color: alpha(@window_fg_color, 0.07);
+    border: 1px solid @borders;
+    border-radius: 4px;
+    color: @accent_color;
+    font-size: 11px;
+    min-height: 0;
+    padding: 2px 6px;
+}
+.mw-auth-error {
+    color: @red;
+    font-size: 11px;
+    opacity: 0.9;
+}

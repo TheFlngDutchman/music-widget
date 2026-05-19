@@ -1,0 +1,27 @@
+# Music Widget configuration.
+# This file is created on first run from the shipped defaults.
+# Edit by hand or via the widget's UI — the widget rewrites this file
+# when you change settings in the gear popover.
+
+[spotify]
+# Local port the PKCE redirect uri listens on. If this port is busy on your
+# system, change it here and add "http://127.0.0.1:<port>/login" to your
+# Spotify app's Redirect URIs at https://developer.spotify.com/dashboard.
+redirect_port = 19872
+
+[visualizer]
+# One of: bars, wave, blocks, flame
+style = "bars"
+
+# cava: 8 / 16 / 32 / 64 / 96
+bars = 32
+
+# cava sensitivity (10–500). Higher = more reactive.
+sensitivity = 100
+
+# cava channel mode: "mono" or "stereo"
+channels = "mono"
+
+# Post-processing smoothing in the Python canvas (0.0–0.9).
+# Higher = more inertia / less jittery.
+smoothing = 0.65
