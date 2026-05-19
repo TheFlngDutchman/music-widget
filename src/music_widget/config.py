@@ -23,11 +23,12 @@ DEFAULTS: dict = {
         # Playlists tab's content.
         "width": 560,
         "height": 320,
-        # Pixels from screen top to the widget. Default matches a 26px
-        # Waybar with 4px top margin (4 + 26 = 30), so the widget sits
-        # flush with Waybar's bottom edge.
-        "margin_top": 30,
-        # Pixels from screen right to the widget — match Hyprland's gaps_out.
+        # Pixels below Waybar's bottom edge (layer-shell measures margins
+        # from the edge of the available work area, i.e. *after* Waybar's
+        # exclusive zone). 4 matches Hyprland's gaps_out — same gap a
+        # tiled window has below the bar.
+        "margin_top": 4,
+        # Pixels from screen right — match Hyprland's gaps_out.
         "margin_right": 4,
     },
     "spotify": {

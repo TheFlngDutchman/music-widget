@@ -7,9 +7,10 @@
 # Popup size. Fixed so the surface doesn't grow with Playlists content.
 width = 560
 height = 320
-# Pixels below screen top. Waybar's bottom edge sits at y=30
-# (margin-top 4 + height 26), so 30 docks the widget flush with the bar.
-margin_top = 30
+# Pixels below Waybar's bottom edge. Layer-shell measures this from the
+# bottom of the bar's exclusive zone, not from screen top — so 4 matches
+# Hyprland's gaps_out (same gap a tiled window has below Waybar).
+margin_top = 4
 # Pixels from screen right — match Hyprland's gaps_out.
 margin_right = 4
 
