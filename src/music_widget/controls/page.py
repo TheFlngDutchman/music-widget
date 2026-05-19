@@ -10,6 +10,7 @@ gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Pango", "1.0")
 from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango
 
+from music_widget import player as player_mod
 from music_widget.player import sp_ctrl
 from music_widget.ui.helpers import ctrl_btn
 
@@ -20,8 +21,6 @@ class ControlsPage(Gtk.Box):
         self._duration = 0
         self._seek_lock = False
         self._art_url = None
-        self._shuffle_on = False
-        self._repeat_on = False
 
         wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         wrap.set_valign(Gtk.Align.CENTER)
@@ -85,9 +84,9 @@ class ControlsPage(Gtk.Box):
         ctrl = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         ctrl.set_halign(Gtk.Align.CENTER)
 
-        self._sh_btn = ctrl_btn("󰒝", self._on_shuffle, dim=True)
+        self._sh_btn = ctrl_btn("󰒝", self._on_shuffle, dim=not player_mod.shuffle_on)
         self._play = ctrl_btn("󰐊", self._on_play_pause)
-        self._re_btn = ctrl_btn("󰑖", self._on_repeat, dim=True)
+        self._re_btn = ctrl_btn("󰑖", self._on_repeat, dim=not player_mod.repeat_on)
 
         vol_icon = Gtk.Label(label="󰕾")
         vol_icon.add_css_class("mw-vol-icon")
@@ -174,14 +173,14 @@ class ControlsPage(Gtk.Box):
         sp_ctrl("play-pause")
 
     def _on_shuffle(self, btn):
-        self._shuffle_on = not self._shuffle_on
-        btn.set_opacity(1.0 if self._shuffle_on else 0.35)
-        sp_ctrl("shuffle", state=self._shuffle_on)
+        player_mod.shuffle_on = not player_mod.shuffle_on
+        btn.set_opacity(1.0 if player_mod.shuffle_on else 0.35)
+        sp_ctrl("shuffle", state=player_mod.shuffle_on)
 
     def _on_repeat(self, btn):
-        self._repeat_on = not self._repeat_on
-        btn.set_opacity(1.0 if self._repeat_on else 0.35)
-        sp_ctrl("repeat", state="track" if self._repeat_on else "off")
+        player_mod.repeat_on = not player_mod.repeat_on
+        btn.set_opacity(1.0 if player_mod.repeat_on else 0.35)
+        sp_ctrl("repeat", state="track" if player_mod.repeat_on else "off")
 
     def _on_volume(self, _, _t, v):
         sp_ctrl("volume", pct=max(0, min(100, int(v))))

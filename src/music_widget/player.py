@@ -10,6 +10,18 @@ _PLAYERS = "spotifyd,spotify,mpd"
 # playerctl/MPD when no Spotify session is authenticated.
 _sp_ref: list = [None]
 
+# Active spotifyd device id, set by the browser once playback starts.
+# Without an explicit device_id, sp.shuffle() / sp.volume() operate on
+# whatever Spotify thinks is "active" — which is fragile right after a
+# start_playback because the device list takes a moment to settle.
+active_device_id: str | None = None
+
+# UI shuffle/repeat state, lifted out of ControlsPage so the browser can
+# re-assert it after each start_playback (Spotify resets these on a
+# context change).
+shuffle_on: bool = False
+repeat_on: bool = False
+
 
 def _pc(*args, timeout: float = 1.0) -> str:
     """Run playerctl scoped to our preferred players. Returns stdout stripped."""
@@ -29,24 +41,27 @@ def sp_ctrl(action: str, **kw) -> None:
     sp = _sp_ref[0]
     if sp is not None:
         try:
+            # Pass our spotifyd device id when we know it, so calls work
+            # even if Spotify briefly thinks another device is "active".
+            dev = active_device_id
             if action == "next":
-                sp.next_track()
+                sp.next_track(device_id=dev)
             elif action == "previous":
-                sp.previous_track()
+                sp.previous_track(device_id=dev)
             elif action == "play-pause":
                 pb = sp.current_playback()
                 if pb and pb.get("is_playing"):
-                    sp.pause_playback()
+                    sp.pause_playback(device_id=dev)
                 else:
-                    sp.start_playback()
+                    sp.start_playback(device_id=dev)
             elif action == "seek":
-                sp.seek_track(int(kw["ms"]))
+                sp.seek_track(int(kw["ms"]), device_id=dev)
             elif action == "shuffle":
-                sp.shuffle(kw["state"])
+                sp.shuffle(bool(kw["state"]), device_id=dev)
             elif action == "repeat":
-                sp.repeat(kw["state"])  # "track", "context", or "off"
+                sp.repeat(kw["state"], device_id=dev)
             elif action == "volume":
-                sp.volume(int(kw["pct"]))
+                sp.volume(int(kw["pct"]), device_id=dev)
             return
         except Exception:
             pass

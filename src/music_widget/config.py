@@ -18,6 +18,13 @@ CONFIG_TOML = CONFIG_DIR / "config.toml"
 CAVA_CONF = CONFIG_DIR / "cava.conf"
 
 DEFAULTS: dict = {
+    "widget": {
+        # Pixels from screen top to the widget — should land just below
+        # Waybar. Default matches a 26px Waybar with 4px top margin + 4px gap.
+        "margin_top": 34,
+        # Pixels from screen right to the widget — match Waybar's right margin.
+        "margin_right": 4,
+    },
     "spotify": {
         "redirect_port": 19872,
     },

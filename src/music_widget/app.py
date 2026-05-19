@@ -12,6 +12,20 @@ gi.require_version("Pango", "1.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, Pango
 
+# gtk4-layer-shell anchors the popup to the top-right of the screen like
+# Waybar itself, instead of relying on a compositor-specific window rule.
+# We import it lazily — if it's not installed, we fall back to a plain
+# toplevel and the user can still position it via their compositor.
+try:
+    gi.require_version("Gtk4LayerShell", "1.0")
+    from gi.repository import Gtk4LayerShell as LayerShell
+
+    HAS_LAYER_SHELL = True
+except (ImportError, ValueError):
+    LayerShell = None  # type: ignore[assignment]
+    HAS_LAYER_SHELL = False
+
+from music_widget import config as cfg_mod
 from music_widget import player as player_mod
 from music_widget import theme as theme_mod
 from music_widget.controls.page import ControlsPage
@@ -120,10 +134,34 @@ class MusicWindow(Gtk.ApplicationWindow):
         self._last_title = ""
         self._last_artist = ""
 
+        self._configure_layer_shell()
         self._load_css()
         self._build(colors)
         GLib.timeout_add(500, self._poll)
         self.connect("destroy", self._on_destroy)
+
+    def _configure_layer_shell(self) -> None:
+        """Anchor the window to the top-right like a Waybar popup.
+
+        Reads [widget] from ~/.config/music-widget/config.toml so the user
+        can tune the gap below the bar / right edge without editing code.
+        Silently no-ops if gtk4-layer-shell isn't installed.
+        """
+        if not HAS_LAYER_SHELL:
+            return
+        w_cfg = cfg_mod.load().get("widget", {})
+        margin_top = int(w_cfg.get("margin_top", 34))
+        margin_right = int(w_cfg.get("margin_right", 4))
+
+        LayerShell.init_for_window(self)
+        LayerShell.set_layer(self, LayerShell.Layer.TOP)
+        LayerShell.set_anchor(self, LayerShell.Edge.TOP, True)
+        LayerShell.set_anchor(self, LayerShell.Edge.RIGHT, True)
+        LayerShell.set_margin(self, LayerShell.Edge.TOP, margin_top)
+        LayerShell.set_margin(self, LayerShell.Edge.RIGHT, margin_right)
+        # ON_DEMAND lets the Spotify search entry take focus when clicked,
+        # but doesn't steal focus from the user's current window otherwise.
+        LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.ON_DEMAND)
 
     def _build(self, colors):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)

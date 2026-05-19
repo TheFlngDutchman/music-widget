@@ -14,6 +14,7 @@ gi.require_version("Pango", "1.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
 from music_widget import config as cfg_mod
+from music_widget import player as player_mod
 from music_widget.spotify import api as sp_api
 from music_widget.spotify import auth as sp_auth
 from music_widget.spotify import library as sp_library
@@ -473,10 +474,32 @@ class SpotifyBrowser(Gtk.Box):
             self._context_uri = None
             threading.Thread(target=self._fetch_recent, daemon=True).start()
         elif t == "track":
-            self._play_track_threaded(
-                uri=item["uri"],
-                context_uri=self._context_uri,
-            )
+            # If we're inside a playlist/album, pass context_uri so next/prev
+            # work natively. Otherwise (Liked Songs, Recently Played, search
+            # results) Spotify won't let us use a context_uri — pass the
+            # entire visible track list as uris=[...] so a queue exists and
+            # the "next" button has somewhere to go.
+            if self._context_uri:
+                self._play_track_threaded(
+                    uri=item["uri"],
+                    context_uri=self._context_uri,
+                    uri_list=None,
+                    position=0,
+                )
+            else:
+                track_uris = [
+                    it["uri"] for it in self._items if it.get("t") == "track"
+                ]
+                try:
+                    pos = track_uris.index(item["uri"])
+                except ValueError:
+                    pos = 0
+                self._play_track_threaded(
+                    uri=item["uri"],
+                    context_uri=None,
+                    uri_list=track_uris,
+                    position=pos,
+                )
 
     # ── Fetchers (run on background threads) ───────────────────────────
 
@@ -590,11 +613,18 @@ class SpotifyBrowser(Gtk.Box):
         sp_streaming.kill_running()
         self._stack.set_visible_child_name("browse")
 
-    def _play_track_threaded(self, *, uri: str, context_uri: str | None):
-        self._last_play_args = (uri, context_uri)
+    def _play_track_threaded(
+        self,
+        *,
+        uri: str,
+        context_uri: str | None,
+        uri_list: list[str] | None = None,
+        position: int = 0,
+    ):
+        self._last_play_args = (uri, context_uri, uri_list, position)
         threading.Thread(
             target=self._play_track,
-            args=(uri, context_uri),
+            args=(uri, context_uri, uri_list, position),
             daemon=True,
         ).start()
 
@@ -602,8 +632,13 @@ class SpotifyBrowser(Gtk.Box):
         if self._last_play_args is None:
             self._stack.set_visible_child_name("browse")
             return
-        uri, context_uri = self._last_play_args
-        self._play_track_threaded(uri=uri, context_uri=context_uri)
+        uri, context_uri, uri_list, position = self._last_play_args
+        self._play_track_threaded(
+            uri=uri,
+            context_uri=context_uri,
+            uri_list=uri_list,
+            position=position,
+        )
 
     def _toggle_log(self, _btn):
         if self._err_log.get_visible():
@@ -620,7 +655,13 @@ class SpotifyBrowser(Gtk.Box):
         self._stack.set_visible_child_name("play-error")
         return False
 
-    def _play_track(self, uri: str, context_uri: str | None):
+    def _play_track(
+        self,
+        uri: str,
+        context_uri: str | None,
+        uri_list: list[str] | None = None,
+        position: int = 0,
+    ):
         import shutil as _sh
 
         if not _sh.which("spotifyd"):
@@ -680,6 +721,15 @@ class SpotifyBrowser(Gtk.Box):
                     context_uri=context_uri,
                     offset={"uri": uri},
                 )
+            elif uri_list:
+                # Liked Songs / Recently Played / search results — no
+                # context_uri available, so seed the device queue with
+                # the visible list and start at the clicked position.
+                self._sp.start_playback(
+                    device_id=device_id,
+                    uris=uri_list,
+                    offset={"position": int(position)},
+                )
             else:
                 self._sp.start_playback(device_id=device_id, uris=[uri])
         except Exception as e:
@@ -693,6 +743,22 @@ class SpotifyBrowser(Gtk.Box):
             else:
                 GLib.idle_add(self._show_play_error, f"Playback failed: {err[:140]}")
             return
+
+        # Remember the active device for subsequent control calls
+        # (shuffle/repeat/seek) and re-assert the user's shuffle/repeat
+        # choices — Spotify silently resets both on a context change.
+        player_mod.active_device_id = device_id
+        try:
+            self._sp.shuffle(bool(player_mod.shuffle_on), device_id=device_id)
+        except Exception:
+            pass
+        try:
+            self._sp.repeat(
+                "track" if player_mod.repeat_on else "off",
+                device_id=device_id,
+            )
+        except Exception:
+            pass
 
         GLib.idle_add(self._stack.set_visible_child_name, "browse")
 
