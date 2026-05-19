@@ -23,10 +23,10 @@ DEFAULTS: dict = {
         # Playlists tab's content.
         "width": 560,
         "height": 320,
-        # Pixels from screen top to the widget — should land just below
-        # Waybar. Default matches a 26px Waybar with 4px top margin + 4px
-        # gap (Hyprland's gaps_out).
-        "margin_top": 34,
+        # Pixels from screen top to the widget. Default matches a 26px
+        # Waybar with 4px top margin (4 + 26 = 30), so the widget sits
+        # flush with Waybar's bottom edge.
+        "margin_top": 30,
         # Pixels from screen right to the widget — match Hyprland's gaps_out.
         "margin_right": 4,
     },
@@ -87,13 +87,22 @@ def _quote(v):
 
 
 def _write(cfg: dict) -> None:
+    """Write only keys that differ from DEFAULTS so a later default change
+    actually propagates to users who never touched that section."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     lines = ["# Music Widget configuration — managed by the widget UI.", ""]
     for section, body in cfg.items():
         if not isinstance(body, dict):
             continue
+        defaults_section = DEFAULTS.get(section, {})
+        overrides = {
+            k: v for k, v in body.items()
+            if defaults_section.get(k) != v
+        }
+        if not overrides:
+            continue
         lines.append(f"[{section}]")
-        for k, v in body.items():
+        for k, v in overrides.items():
             lines.append(f"{k} = {_quote(v)}")
         lines.append("")
     CONFIG_TOML.write_text("\n".join(lines))
