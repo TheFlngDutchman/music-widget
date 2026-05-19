@@ -168,7 +168,9 @@ class MusicWindow(Gtk.ApplicationWindow):
         self._stack = Gtk.Stack()
         self._stack.set_vexpand(True)
         self._stack.set_hhomogeneous(True)
-        self._stack.set_vhomogeneous(False)
+        # Reserve the max height across all pages so the window doesn't
+        # resize (and Hyprland doesn't re-anchor) when switching tabs.
+        self._stack.set_vhomogeneous(True)
         self._stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self._stack.set_transition_duration(120)
 

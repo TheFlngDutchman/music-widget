@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Music Widget
+GenericName=Music Player
+Comment=Spotify, MPD, and a cava visualizer in a single popup
+Exec=music-widget
+TryExec=music-widget
+Icon=multimedia-audio-player
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;spotify;mpd;cava;visualizer;
+StartupNotify=true
+StartupWMClass=com.music.widget

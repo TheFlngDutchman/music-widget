@@ -16,6 +16,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="${HOME}/.local/share/music-widget/venv"
 BIN_DIR="${HOME}/.local/bin"
 CFG_DIR="${HOME}/.config/music-widget"
+APPS_DIR="${HOME}/.local/share/applications"
+DESKTOP_FILE="${APPS_DIR}/music-widget.desktop"
 
 PKGS=(playerctl cava spotifyd mpd mpc gtk4 libadwaita python python-gobject)
 # uv may be installed standalone (not via pacman); we'll check the binary too.
@@ -27,11 +29,19 @@ warn()  { echo "$(color "1;33" "!") $*"; }
 die()   { echo "$(color "1;31" "✗") $*" >&2; exit 1; }
 
 INSTALL_DEPS=0
+LAUNCHER_MODE=ask   # ask|yes|no
 for arg in "$@"; do
     case "$arg" in
         --install-deps) INSTALL_DEPS=1 ;;
+        --with-launcher) LAUNCHER_MODE=yes ;;
+        --no-launcher)   LAUNCHER_MODE=no  ;;
         -h|--help)
             sed -n '2,20p' "$0"
+            echo
+            echo "Flags:"
+            echo "  --install-deps    pass missing packages to 'omarchy pkg add'"
+            echo "  --with-launcher   install ~/.local/share/applications entry without asking"
+            echo "  --no-launcher     skip the .desktop entry prompt"
             exit 0
             ;;
         *) die "Unknown flag: $arg" ;;
@@ -56,11 +66,20 @@ fi
 
 if [ ${#missing[@]} -gt 0 ]; then
     if [ "$INSTALL_DEPS" -eq 1 ]; then
-        info "Installing missing packages: ${missing[*]}"
-        sudo pacman -S --needed --noconfirm "${missing[@]}"
+        info "Installing missing packages via omarchy pkg add: ${missing[*]}"
+        if command -v omarchy &>/dev/null; then
+            omarchy pkg add "${missing[@]}"
+        else
+            warn "omarchy not on PATH — falling back to pacman"
+            sudo pacman -S --needed --noconfirm "${missing[@]}"
+        fi
     else
         warn "Missing packages: ${missing[*]}"
-        echo "  Install them with: sudo pacman -S --needed ${missing[*]}"
+        if command -v omarchy &>/dev/null; then
+            echo "  Install with: omarchy pkg add ${missing[*]}"
+        else
+            echo "  Install with: sudo pacman -S --needed ${missing[*]}"
+        fi
         echo "  Or re-run with: $0 --install-deps"
         die "System deps not satisfied"
     fi
@@ -127,7 +146,44 @@ seed() {
 seed "$REPO_DIR/data/cava.conf"           "$CFG_DIR/cava.conf"
 seed "$REPO_DIR/data/default-config.toml" "$CFG_DIR/config.toml"
 
-# ── 6. Waybar snippet ──────────────────────────────────────────────────
+# ── 6. App launcher (.desktop) entry ───────────────────────────────────
+install_launcher_entry() {
+    mkdir -p "$APPS_DIR"
+    install -m 644 "$REPO_DIR/data/music-widget.desktop" "$DESKTOP_FILE"
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$APPS_DIR" &>/dev/null || true
+    fi
+    ok "Installed $DESKTOP_FILE (visible in Walker / app launcher)"
+}
+
+case "$LAUNCHER_MODE" in
+    yes)
+        install_launcher_entry
+        ;;
+    no)
+        info "Skipping app-launcher entry (--no-launcher)"
+        ;;
+    ask)
+        echo
+        if [ -e "$DESKTOP_FILE" ]; then
+            prompt="Reinstall app-launcher entry ($DESKTOP_FILE)? [Y/n] "
+        else
+            prompt="Install app-launcher entry so 'Music Widget' shows up in Walker / your launcher? [Y/n] "
+        fi
+        # Default Yes; if stdin isn't a TTY (e.g. piped), assume Yes.
+        if [ -t 0 ]; then
+            read -r -p "$prompt" reply
+        else
+            reply=""
+        fi
+        case "${reply,,}" in
+            ""|y|yes) install_launcher_entry ;;
+            *)        info "Skipping app-launcher entry" ;;
+        esac
+        ;;
+esac
+
+# ── 7. Waybar snippet ──────────────────────────────────────────────────
 cat <<'EOF'
 
 ────────────────────────────────────────────────────────────────────
