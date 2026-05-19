@@ -126,7 +126,12 @@ class PlaylistsPage(Gtk.Box):
 class MusicWindow(Gtk.ApplicationWindow):
     def __init__(self, app, colors):
         super().__init__(application=app, title="Music")
-        self.set_default_size(560, 240)
+
+        w_cfg = cfg_mod.load().get("widget", {})
+        self._width = int(w_cfg.get("width", 560))
+        self._height = int(w_cfg.get("height", 320))
+
+        self.set_default_size(self._width, self._height)
         self.set_resizable(False)
         self.set_decorated(False)
 
@@ -134,13 +139,13 @@ class MusicWindow(Gtk.ApplicationWindow):
         self._last_title = ""
         self._last_artist = ""
 
-        self._configure_layer_shell()
+        self._configure_layer_shell(w_cfg)
         self._load_css()
         self._build(colors)
         GLib.timeout_add(500, self._poll)
         self.connect("destroy", self._on_destroy)
 
-    def _configure_layer_shell(self) -> None:
+    def _configure_layer_shell(self, w_cfg: dict) -> None:
         """Anchor the window to the top-right like a Waybar popup.
 
         Reads [widget] from ~/.config/music-widget/config.toml so the user
@@ -149,7 +154,6 @@ class MusicWindow(Gtk.ApplicationWindow):
         """
         if not HAS_LAYER_SHELL:
             return
-        w_cfg = cfg_mod.load().get("widget", {})
         margin_top = int(w_cfg.get("margin_top", 34))
         margin_right = int(w_cfg.get("margin_right", 4))
 
@@ -166,6 +170,10 @@ class MusicWindow(Gtk.ApplicationWindow):
     def _build(self, colors):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         root.add_css_class("mw-root")
+        # Force a fixed widget size so the layer surface doesn't grow when
+        # a tab's natural content height (e.g. a long Spotify playlist
+        # list) exceeds the default — internal scroll views handle overflow.
+        root.set_size_request(self._width, self._height)
         self.set_child(root)
 
         # Header

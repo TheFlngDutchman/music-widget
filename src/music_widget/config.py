@@ -19,10 +19,15 @@ CAVA_CONF = CONFIG_DIR / "cava.conf"
 
 DEFAULTS: dict = {
     "widget": {
+        # Popup size in pixels. Fixed so the surface doesn't grow with the
+        # Playlists tab's content.
+        "width": 560,
+        "height": 320,
         # Pixels from screen top to the widget — should land just below
-        # Waybar. Default matches a 26px Waybar with 4px top margin + 4px gap.
+        # Waybar. Default matches a 26px Waybar with 4px top margin + 4px
+        # gap (Hyprland's gaps_out).
         "margin_top": 34,
-        # Pixels from screen right to the widget — match Waybar's right margin.
+        # Pixels from screen right to the widget — match Hyprland's gaps_out.
         "margin_right": 4,
     },
     "spotify": {

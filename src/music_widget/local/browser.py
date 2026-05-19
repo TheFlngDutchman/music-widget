@@ -104,6 +104,7 @@ class LocalBrowser(Gtk.Box):
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
+        scroll.set_propagate_natural_height(False)
         self._list = Gtk.ListBox()
         self._list.set_selection_mode(Gtk.SelectionMode.SINGLE)
         self._list.add_css_class("mw-list")

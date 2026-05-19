@@ -3,6 +3,17 @@
 # Edit by hand or via the widget's UI — the widget rewrites this file
 # when you change settings in the gear popover.
 
+[widget]
+# Popup size. Fixed so the surface doesn't grow with Playlists content.
+width = 560
+height = 320
+# Pixels below screen top. With Hyprland gaps_out = 4 and a 26px Waybar
+# at margin-top 4, the bar's bottom edge sits at y=30, so 34 gives a 4px
+# gap below the bar — matches Hyprland's gaps_out.
+margin_top = 34
+# Pixels from screen right — match Hyprland's gaps_out.
+margin_right = 4
+
 [spotify]
 # Local port the PKCE redirect uri listens on. If this port is busy on your
 # system, change it here and add "http://127.0.0.1:<port>/login" to your

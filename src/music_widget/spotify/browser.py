@@ -188,6 +188,9 @@ class SpotifyBrowser(Gtk.Box):
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
+        # Don't let the ListBox's natural content height push the layer
+        # surface taller — the scrollbar handles overflow.
+        scroll.set_propagate_natural_height(False)
 
         self._list = Gtk.ListBox()
         self._list.set_selection_mode(Gtk.SelectionMode.SINGLE)
