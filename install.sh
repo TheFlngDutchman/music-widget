@@ -289,8 +289,14 @@ PYEOF
 
     if [ $? -eq 0 ]; then
         ok "Injected music-widget into $WAYBAR_CFG (backup: ${WAYBAR_CFG}.bak)"
-        if pkill -SIGUSR2 waybar 2>/dev/null; then
-            ok "Reloaded Waybar"
+        if command -v omarchy &>/dev/null; then
+            omarchy restart waybar && ok "Restarted Waybar via omarchy"
+        elif pkill -SIGUSR2 waybar 2>/dev/null; then
+            ok "Reloaded Waybar via SIGUSR2"
+        elif systemctl --user restart waybar 2>/dev/null; then
+            ok "Restarted Waybar via systemd"
+        else
+            warn "Could not restart Waybar — restart it manually"
         fi
     else
         warn "Injection failed — restoring backup"
