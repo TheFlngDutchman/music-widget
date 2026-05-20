@@ -207,20 +207,44 @@ case "$LAUNCHER_MODE" in
         ;;
 esac
 
-# ── 7. Waybar snippet ──────────────────────────────────────────────────
-cat <<'EOF'
+# ── 7. Waybar config ───────────────────────────────────────────────────
+WAYBAR_CFG="${HOME}/.config/waybar/config.jsonc"
 
-────────────────────────────────────────────────────────────────────
-Waybar wiring (paste into ~/.config/waybar/config.jsonc):
+inject_waybar() {
+    if [ ! -f "$WAYBAR_CFG" ]; then
+        warn "No waybar config at $WAYBAR_CFG"
+        info "Snippet saved at docs/waybar.jsonc — paste it manually."
+        return
+    fi
 
-  "modules-right": [
-    "custom/music-prev",
-    "custom/music-play",
-    "custom/music-next",
-    "custom/music-title",
-    ...
-  ],
+    # Check if module *definition* (key with colon) is already present.
+    if python3 -c "
+import re, sys
+text = open('$WAYBAR_CFG').read()
+sys.exit(0 if re.search(r'\"custom/music-title\"\s*:', text) else 1)
+" 2>/dev/null; then
+        ok "Waybar already has music-widget modules — nothing changed"
+        return
+    fi
 
+    info "Injecting music-widget modules into $WAYBAR_CFG"
+    cp "$WAYBAR_CFG" "${WAYBAR_CFG}.bak"
+
+    python3 - "$WAYBAR_CFG" <<'PYEOF'
+import re, sys
+
+path = sys.argv[1]
+with open(path) as f:
+    content = f.read()
+
+names = [
+    '"custom/music-prev"',
+    '"custom/music-play"',
+    '"custom/music-next"',
+    '"custom/music-title"',
+]
+
+defs = '''\
   "custom/music-prev": {
     "format": "󰒮   ",
     "on-click": "playerctl --player=spotifyd,spotify,mpd previous",
@@ -243,10 +267,38 @@ Waybar wiring (paste into ~/.config/waybar/config.jsonc):
     "max-length": 30,
     "on-click": "music-widget",
     "tooltip": false
-  }
+  }'''
 
-A copy of this snippet is at docs/waybar.jsonc.
-────────────────────────────────────────────────────────────────────
-EOF
+# Inject module names at the start of the modules-right array.
+inject = ',\n    '.join(names) + ','
+new = re.sub(
+    r'("modules-right"\s*:\s*\[)',
+    r'\1\n    ' + inject,
+    content,
+    count=1,
+)
+
+# Append module definitions before the final closing brace.
+pos = new.rfind('\n}')
+if pos != -1:
+    new = new[:pos] + ',\n\n' + defs + '\n' + new[pos:]
+
+with open(path, 'w') as f:
+    f.write(new)
+PYEOF
+
+    if [ $? -eq 0 ]; then
+        ok "Injected music-widget into $WAYBAR_CFG (backup: ${WAYBAR_CFG}.bak)"
+        if pkill -SIGUSR2 waybar 2>/dev/null; then
+            ok "Reloaded Waybar"
+        fi
+    else
+        warn "Injection failed — restoring backup"
+        cp "${WAYBAR_CFG}.bak" "$WAYBAR_CFG"
+        info "Snippet saved at docs/waybar.jsonc — paste it manually."
+    fi
+}
+
+inject_waybar
 
 ok "Done. Launch: music-widget"

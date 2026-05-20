@@ -294,16 +294,65 @@ class MusicApp(Adw.Application):
             application_id="com.music.widget",
             flags=Gio.ApplicationFlags.FLAGS_NONE,
         )
-        self._colors = theme_mod.cairo_colors()
         self.connect("activate", self._activate)
+        self._theme_monitor: "Gio.FileMonitor | None" = None
+        self._theme_restart_pending = False
 
     def _activate(self, app):
         Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.PREFER_DARK)
         wins = self.get_windows()
         if wins:
             wins[0].close()
-        else:
-            MusicWindow(app, self._colors).present()
+            return
+        # Hold the GApplication alive after the window closes so subsequent
+        # Waybar clicks toggle the window via D-Bus instead of paying the
+        # ~1-2 s cold-start cost (Python imports + GTK init + layer-shell).
+        if self._theme_monitor is None:
+            self.hold()
+        MusicWindow(app, theme_mod.cairo_colors()).present()
+        if self._theme_monitor is None:
+            self._start_theme_watch()
+
+    def _start_theme_watch(self) -> None:
+        theme_dir = os.path.expanduser("~/.config/omarchy/current/theme")
+        if not os.path.isdir(theme_dir):
+            return
+        try:
+            f = Gio.File.new_for_path(theme_dir)
+            self._theme_monitor = f.monitor_directory(
+                Gio.FileMonitorFlags.WATCH_MOVES, None
+            )
+            self._theme_monitor.connect("changed", self._on_theme_changed)
+        except Exception:
+            pass
+
+    def _on_theme_changed(
+        self,
+        _monitor: "Gio.FileMonitor",
+        gfile: Gio.File,
+        _other: "Gio.File | None",
+        _event: Gio.FileMonitorEvent,
+    ) -> None:
+        if gfile.get_basename() != "gtk.css":
+            return
+        wins = self.get_windows()
+        if not wins or self._theme_restart_pending:
+            return
+        self._theme_restart_pending = True
+        GLib.timeout_add(300, self._restart_for_theme)
+
+    def _restart_for_theme(self) -> bool:
+        self._theme_restart_pending = False
+        wins = self.get_windows()
+        if not wins:
+            return False
+        wins[0].close()
+        GLib.timeout_add(150, self._reopen_after_theme)
+        return False
+
+    def _reopen_after_theme(self) -> bool:
+        MusicWindow(self, theme_mod.cairo_colors()).present()
+        return False
 
 
 def main() -> int:

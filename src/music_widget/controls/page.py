@@ -15,12 +15,22 @@ from music_widget.player import sp_ctrl
 from music_widget.ui.helpers import ctrl_btn
 
 
+def _ctrl_async(action: str, **kw) -> None:
+    """Dispatch sp_ctrl off the main thread — Spotify Web API calls take
+    hundreds of ms and would freeze the UI."""
+    threading.Thread(
+        target=sp_ctrl, args=(action,), kwargs=kw, daemon=True
+    ).start()
+
+
 class ControlsPage(Gtk.Box):
     def __init__(self):
         super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self._duration = 0
         self._seek_lock = False
         self._art_url = None
+        self._vol_timer_id: int | None = None
+        self._pending_vol: int = 0
 
         wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         wrap.set_valign(Gtk.Align.CENTER)
@@ -100,9 +110,9 @@ class ControlsPage(Gtk.Box):
 
         for w in [
             self._sh_btn,
-            ctrl_btn("󰒮", lambda _: sp_ctrl("previous")),
+            ctrl_btn("󰒮", lambda _: _ctrl_async("previous")),
             self._play,
-            ctrl_btn("󰒭", lambda _: sp_ctrl("next")),
+            ctrl_btn("󰒭", lambda _: _ctrl_async("next")),
             self._re_btn,
             vol_icon,
             self._vol,
@@ -165,23 +175,38 @@ class ControlsPage(Gtk.Box):
     def _on_seek(self, _, _t, value):
         if self._duration > 0:
             self._seek_lock = True
-            sp_ctrl("seek", ms=int(value * self._duration * 1000))
+            _ctrl_async("seek", ms=int(value * self._duration * 1000))
             GLib.timeout_add(1200, lambda: setattr(self, "_seek_lock", False) or False)
         return False
 
     def _on_play_pause(self, _):
-        sp_ctrl("play-pause")
+        # Optimistic toggle — the poll loop will reconcile within 500 ms
+        # if the API call somehow ends in a different state.
+        playing_now = self._play.get_label() == "󰏤"
+        self._play.set_label("󰐊" if playing_now else "󰏤")
+        _ctrl_async("play-pause")
 
     def _on_shuffle(self, btn):
         player_mod.shuffle_on = not player_mod.shuffle_on
         btn.set_opacity(1.0 if player_mod.shuffle_on else 0.35)
-        sp_ctrl("shuffle", state=player_mod.shuffle_on)
+        _ctrl_async("shuffle", state=player_mod.shuffle_on)
 
     def _on_repeat(self, btn):
         player_mod.repeat_on = not player_mod.repeat_on
         btn.set_opacity(1.0 if player_mod.repeat_on else 0.35)
-        sp_ctrl("repeat", state="track" if player_mod.repeat_on else "off")
+        _ctrl_async("repeat", state="track" if player_mod.repeat_on else "off")
 
     def _on_volume(self, _, _t, v):
-        sp_ctrl("volume", pct=max(0, min(100, int(v))))
+        # Debounce: a slider drag fires change-value every few ms; we'd
+        # otherwise spray dozens of HTTP requests per drag. Coalesce to
+        # one API call ~80 ms after the user stops dragging.
+        self._pending_vol = max(0, min(100, int(v)))
+        if self._vol_timer_id is not None:
+            GLib.source_remove(self._vol_timer_id)
+        self._vol_timer_id = GLib.timeout_add(80, self._flush_volume)
+        return False
+
+    def _flush_volume(self):
+        self._vol_timer_id = None
+        _ctrl_async("volume", pct=self._pending_vol)
         return False

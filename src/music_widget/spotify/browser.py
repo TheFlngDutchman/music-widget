@@ -148,13 +148,13 @@ class SpotifyBrowser(Gtk.Box):
         spin = Gtk.Spinner()
         spin.set_size_request(28, 28)
         spin.start()
-        wait_lbl = Gtk.Label(label="Waiting for browser…")
-        wait_lbl.add_css_class("mw-section-lbl")
-        wait_note = Gtk.Label(
+        self._wait_lbl = Gtk.Label(label="Waiting for browser…")
+        self._wait_lbl.add_css_class("mw-section-lbl")
+        self._wait_note = Gtk.Label(
             label="Complete the login in your browser,\nthen come back here."
         )
-        wait_note.add_css_class("mw-note")
-        wait_note.set_justify(Gtk.Justification.CENTER)
+        self._wait_note.add_css_class("mw-note")
+        self._wait_note.set_justify(Gtk.Justification.CENTER)
 
         cancel = Gtk.Button(label="Cancel")
         cancel.add_css_class("mw-nav-btn")
@@ -162,7 +162,7 @@ class SpotifyBrowser(Gtk.Box):
             "clicked", lambda _: self._stack.set_visible_child_name("auth")
         )
 
-        for w in [spin, wait_lbl, wait_note, cancel]:
+        for w in [spin, self._wait_lbl, self._wait_note, cancel]:
             page.append(w)
         return page
 
@@ -282,19 +282,26 @@ class SpotifyBrowser(Gtk.Box):
     def _try_cached_auth(self):
         cid = sp_auth.saved_client_id()
         if cid:
-            GLib.idle_add(self._cid.set_text, cid)
+            self._cid.set_text(cid)
+        # Token refresh hits the network — run off the main thread so the
+        # window paints instantly on launch.
+        threading.Thread(
+            target=self._try_cached_auth_thread, args=(cid,), daemon=True
+        ).start()
+        return False
+
+    def _try_cached_auth_thread(self, cid: str):
         sp, err = sp_auth.try_cached_session(cid, self._port)
         if sp is not None:
             self._sp = sp
             sp_api.bind(sp)
-            self._stack.set_visible_child_name("browse")
-            self._show_home()
+            GLib.idle_add(self._stack.set_visible_child_name, "browse")
+            GLib.idle_add(self._show_home)
         else:
-            self._stack.set_visible_child_name("auth")
+            GLib.idle_add(self._stack.set_visible_child_name, "auth")
             if err:
-                self._auth_error.set_text(err[:140])
-                self._auth_error.set_visible(True)
-        return False
+                GLib.idle_add(self._auth_error.set_text, err[:140])
+                GLib.idle_add(self._auth_error.set_visible, True)
 
     def _start_auth(self):
         cid = self._cid.get_text().strip()
@@ -324,6 +331,24 @@ class SpotifyBrowser(Gtk.Box):
             sp.me()  # blocks until the redirect callback completes
             self._sp = sp
             sp_api.bind(sp)
+
+            # Run spotifyd OAuth immediately, reusing the same port.
+            # This is first-time-only; skip if credentials already exist.
+            sp_streaming.ensure_spotifyd_conf()
+            sp_streaming.clear_stale_credentials()
+            if not sp_streaming.has_stored_credentials():
+                GLib.idle_add(
+                    self._wait_lbl.set_text, "Authorizing Spotifyd…"
+                )
+                GLib.idle_add(
+                    self._wait_note.set_text,
+                    "A second browser tab will open.\n"
+                    "Complete that login to enable playback.",
+                )
+                sp_streaming.run_oauth(self._port)
+                # Failure is non-fatal: user can browse and playback will
+                # retry the auth when they first try to play a track.
+
             GLib.idle_add(self._stack.set_visible_child_name, "browse")
             GLib.idle_add(self._show_home)
         except Exception as e:
@@ -337,6 +362,16 @@ class SpotifyBrowser(Gtk.Box):
 
     # ── Top-level home (library entries + playlists) ───────────────────
 
+    def _make_row(self, item: dict) -> Gtk.ListBoxRow:
+        """Build a list row, attaching a queue '+' button for tracks."""
+        on_add = None
+        if item.get("t") == "track":
+            uri = item["uri"]
+            on_add = lambda u=uri: self._add_to_queue(u)
+        row = list_row(item["icon"], item["name"], item.get("sub"), on_add=on_add)
+        row.item = item
+        return row
+
     def _show_home(self):
         self._crumb.set_text("Spotify")
         self._nav.clear()
@@ -346,9 +381,7 @@ class SpotifyBrowser(Gtk.Box):
         self._items = []
         # Library entries appear first
         for entry in sp_library.LIBRARY_ENTRIES:
-            row = list_row(entry["icon"], entry["name"])
-            row.item = entry
-            self._list.append(row)
+            self._list.append(self._make_row(entry))
             self._items.append(entry)
         # Loading placeholder for playlists
         self._list.append(loading_row("Loading playlists…"))
@@ -367,9 +400,7 @@ class SpotifyBrowser(Gtk.Box):
         clear_listbox(self._list)
         self._items = []
         for entry in sp_library.LIBRARY_ENTRIES:
-            row = list_row(entry["icon"], entry["name"])
-            row.item = entry
-            self._list.append(row)
+            self._list.append(self._make_row(entry))
             self._items.append(entry)
         sep = Gtk.ListBoxRow()
         sep.set_selectable(False)
@@ -382,9 +413,7 @@ class SpotifyBrowser(Gtk.Box):
         sep.set_child(sl)
         self._list.append(sep)
         for pl in playlists:
-            row = list_row(pl["icon"], pl["name"])
-            row.item = pl
-            self._list.append(row)
+            self._list.append(self._make_row(pl))
             self._items.append(pl)
         self._refresh_loader_row()
         return False
@@ -406,9 +435,7 @@ class SpotifyBrowser(Gtk.Box):
         self._crumb.set_text(label)
         clear_listbox(self._list)
         for item in items:
-            row = list_row(item["icon"], item["name"], item.get("sub"))
-            row.item = item
-            self._list.append(row)
+            self._list.append(self._make_row(item))
         self._refresh_loader_row()
         return False
 
@@ -458,9 +485,7 @@ class SpotifyBrowser(Gtk.Box):
                 pass
             self._loader_row = None
         for item in items:
-            row = list_row(item["icon"], item["name"], item.get("sub"))
-            row.item = item
-            self._list.append(row)
+            self._list.append(self._make_row(item))
             self._items.append(item)
         self._loading_more = False
         self._refresh_loader_row()
@@ -499,9 +524,7 @@ class SpotifyBrowser(Gtk.Box):
             sep.set_child(lbl)
             self._list.append(sep)
             for item in items:
-                row = list_row(item["icon"], item["name"], item.get("sub"))
-                row.item = item
-                self._list.append(row)
+                self._list.append(self._make_row(item))
                 flat.append(item)
         self._items = flat
         return False
@@ -548,6 +571,12 @@ class SpotifyBrowser(Gtk.Box):
             self._push_nav("Recently Played")
             self._context_uri = None
             threading.Thread(target=self._fetch_recent, daemon=True).start()
+        elif t == "queue":
+            self._push_nav("Queue")
+            self._context_uri = None
+            threading.Thread(target=self._fetch_queue, daemon=True).start()
+        elif t == "clear_queue":
+            self._clear_queue()
         elif t == "track":
             # If we're inside a playlist/album, pass context_uri so next/prev
             # work natively. Otherwise (Liked Songs, Recently Played, search
@@ -626,6 +655,105 @@ class SpotifyBrowser(Gtk.Box):
             GLib.idle_add(self._show, items, "Top Tracks")
         except Exception as e:
             GLib.idle_add(self._show_fetch_error, str(e))
+
+    # ── Queue ──────────────────────────────────────────────────────────
+
+    def _fetch_queue(self):
+        GLib.idle_add(self._show_loading)
+        self._page_ctx = None
+        try:
+            cp, upcoming = sp_library.fetch_queue(self._sp)
+            GLib.idle_add(self._show_queue, cp, upcoming)
+        except Exception as e:
+            GLib.idle_add(self._show_fetch_error, str(e))
+
+    def _show_queue(self, cp: dict | None, upcoming: list[dict]):
+        self._crumb.set_text("Queue")
+        clear_listbox(self._list)
+        self._page_ctx = None
+        self._loader_row = None
+        self._items = []
+        if not cp and not upcoming:
+            self._list.append(error_row("Queue is empty."))
+            return False
+        # Queue rows are informational only — no '+' (already queued) and
+        # not activatable (Spotify's API can't "jump to" a queued position).
+        def add_section(label: str, items: list[dict]):
+            if not items:
+                return
+            sep = Gtk.ListBoxRow()
+            sep.set_selectable(False)
+            lbl = Gtk.Label(label=label)
+            lbl.set_halign(Gtk.Align.START)
+            lbl.add_css_class("mw-note")
+            lbl.set_margin_top(8)
+            lbl.set_margin_start(10)
+            lbl.set_margin_bottom(2)
+            sep.set_child(lbl)
+            self._list.append(sep)
+            for it in items:
+                row = list_row(it["icon"], it["name"], it.get("sub"))
+                row.set_activatable(False)
+                row.set_selectable(False)
+                self._list.append(row)
+        if cp:
+            add_section("Now Playing", [cp])
+        add_section("Up Next", upcoming)
+        # Clear-queue action — only meaningful when there's actually a queue.
+        if upcoming:
+            clear_action = {"t": "clear_queue", "name": "Clear Queue", "icon": "✕"}
+            row = list_row(clear_action["icon"], clear_action["name"])
+            row.item = clear_action
+            self._list.append(row)
+            self._items.append(clear_action)
+        return False
+
+    def _add_to_queue(self, uri: str) -> None:
+        """Append `uri` to the Spotify Connect queue on a background thread."""
+        if self._sp is None:
+            return
+        sp = self._sp
+        dev = player_mod.active_device_id
+
+        def _do():
+            try:
+                sp.add_to_queue(uri, device_id=dev)
+            except Exception:
+                pass
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _clear_queue(self) -> None:
+        """Clear the upcoming queue by restarting the current track with no
+        context — Spotify's API doesn't expose a direct clear endpoint, so
+        we rely on start_playback(uris=[current]) wiping the queue."""
+        if self._sp is None:
+            return
+        sp = self._sp
+
+        def _do():
+            try:
+                pb = sp.current_playback()
+                if not pb or not pb.get("item"):
+                    return
+                current_uri = pb["item"]["uri"]
+                position_ms = pb.get("progress_ms") or 0
+                device = (pb.get("device") or {}).get("id") or player_mod.active_device_id
+                sp.start_playback(
+                    device_id=device,
+                    uris=[current_uri],
+                    position_ms=int(position_ms),
+                )
+            except Exception:
+                return
+            # Refresh the queue view so the user sees the cleared state.
+            GLib.timeout_add(400, self._refresh_queue_view)
+
+        threading.Thread(target=_do, daemon=True).start()
+
+    def _refresh_queue_view(self) -> bool:
+        threading.Thread(target=self._fetch_queue, daemon=True).start()
+        return False
 
     # ── Search ─────────────────────────────────────────────────────────
 
@@ -740,15 +868,23 @@ class SpotifyBrowser(Gtk.Box):
             return
 
         sp_streaming.ensure_spotifyd_conf()
+        sp_streaming.clear_stale_credentials()
 
-        # Always re-bootstrap creds so token rotations don't break playback
-        if not sp_streaming.bootstrap_credentials(self._sp):
+        if not sp_streaming.has_stored_credentials():
             GLib.idle_add(
-                self._show_play_error,
-                "Failed to prepare Spotify credentials. "
-                "Try reconnecting on the Spotify auth screen.",
+                self._begin_streaming_setup,
+                "Authorizing Spotifyd — complete login in your browser.\n"
+                "(First-time only. May take a minute after the browser closes.)",
             )
-            return
+            ok = sp_streaming.run_oauth(self._port)
+            if not ok:
+                GLib.idle_add(
+                    self._show_play_error,
+                    "Spotifyd authorization failed or timed out.\n"
+                    "Ensure your Spotify app has the redirect URI shown on the auth page, "
+                    "then retry.",
+                )
+                return
 
         GLib.idle_add(self._begin_streaming_setup, "Starting spotifyd…")
 
@@ -775,6 +911,16 @@ class SpotifyBrowser(Gtk.Box):
             return
 
         GLib.idle_add(self._begin_streaming_setup, "Starting playback…")
+        # Force our device active before start_playback. Without this, when
+        # the dealer websocket is flaky ("Websocket peer does not respond"
+        # in spotifyd logs), Spotify loads the track on our device but
+        # never actually transfers playback to it — "active device is <>"
+        # — and audio never starts. transfer_playback is a no-op if the
+        # device is already active.
+        try:
+            self._sp.transfer_playback(device_id=device_id, force_play=False)
+        except Exception:
+            pass
         try:
             if context_uri:
                 self._sp.start_playback(

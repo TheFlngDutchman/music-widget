@@ -25,7 +25,13 @@ def page_tab(label: str, active: bool = False, group: Gtk.ToggleButton = None) -
     return b
 
 
-def list_row(icon: str, name: str, sub: str | None = None) -> Gtk.ListBoxRow:
+def list_row(
+    icon: str,
+    name: str,
+    sub: str | None = None,
+    *,
+    on_add=None,
+) -> Gtk.ListBoxRow:
     row = Gtk.ListBoxRow()
     box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     box.set_margin_start(8)
@@ -51,6 +57,17 @@ def list_row(icon: str, name: str, sub: str | None = None) -> Gtk.ListBoxRow:
         sl.set_ellipsize(Pango.EllipsizeMode.END)
         sl.set_max_width_chars(18)
         box.append(sl)
+
+    if on_add is not None:
+        btn = Gtk.Button(label="+")
+        btn.add_css_class("mw-nav-btn")
+        btn.set_tooltip_text("Add to queue")
+        # Right-edge clearance so the overlay scrollbar (which expands on
+        # hover) doesn't obscure or overlap the button.
+        btn.set_margin_end(8)
+        # Gtk.Button consumes the click so row-activated doesn't fire too.
+        btn.connect("clicked", lambda _: on_add())
+        box.append(btn)
 
     row.set_child(box)
     return row
