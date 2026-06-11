@@ -120,7 +120,9 @@ PanelWindow {
                 Layout.fillHeight: true
                 currentIndex: win.currentTab
 
-                ControlsPage {}
+                ControlsPage {
+                    pageActive: win.visible && win.currentTab === 0
+                }
                 VisualizerPage {
                     pageActive: win.visible && win.currentTab === 1
                 }
