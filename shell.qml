@@ -16,12 +16,19 @@ ShellRoot {
             window.visible = !window.visible;
         }
 
-        function show(): void {
+        // not named "show": that collides with the `qs ipc show` subcommand
+        function open(): void {
             window.visible = true;
         }
 
         function hide(): void {
             window.visible = false;
+        }
+
+        // 0 controls, 1 visualizer, 2 playlists, 3 settings
+        function tab(index: int): void {
+            window.currentTab = index;
+            window.visible = true;
         }
     }
 }

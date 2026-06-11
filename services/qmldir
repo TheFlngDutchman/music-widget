@@ -1,3 +1,4 @@
 singleton Config Config.qml
 singleton Theme Theme.qml
 singleton Players Players.qml
+singleton Cava Cava.qml
