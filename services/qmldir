@@ -2,3 +2,6 @@ singleton Config Config.qml
 singleton Theme Theme.qml
 singleton Players Players.qml
 singleton Cava Cava.qml
+singleton SpotifyAuth SpotifyAuth.qml
+singleton SpotifyApi SpotifyApi.qml
+singleton Spotifyd Spotifyd.qml

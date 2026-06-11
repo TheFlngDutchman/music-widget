@@ -51,6 +51,11 @@ PanelWindow {
     WlrLayershell.namespace: "music-widget"
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
+    onVisibleChanged: {
+        if (visible)
+            Spotifyd.refreshState();
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: 6
