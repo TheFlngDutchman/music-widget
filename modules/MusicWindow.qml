@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import "../services"
 import "components"
@@ -70,9 +71,12 @@ PanelWindow {
 
         // drag-to-move via the header strip in floating mode. Sits below
         // the ColumnLayout, so the header buttons still get their clicks.
-        // Moving the window by the pointer delta keeps the grab point
-        // stationary in window coordinates, so deltas stay small.
+        // Position tracking uses the global cursor (hyprctl cursorpos):
+        // window-relative coordinates lag the asynchronous surface moves
+        // and feed back into the delta, causing runaway oscillation.
         MouseArea {
+            id: dragArea
+
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
@@ -80,20 +84,54 @@ PanelWindow {
             enabled: win.floating
             cursorShape: win.floating ? Qt.SizeAllCursor : Qt.ArrowCursor
 
-            property real pressX: 0
-            property real pressY: 0
+            property bool haveBase: false
+            property int baseX: 0
+            property int baseY: 0
+            property int baseMarginLeft: 0
+            property int baseMarginTop: 0
 
-            onPressed: mouse => {
-                pressX = mouse.x;
-                pressY = mouse.y;
+            onPressedChanged: {
+                haveBase = false;
+                if (pressed) {
+                    baseMarginLeft = Config.window.marginLeft;
+                    baseMarginTop = Config.window.marginTop;
+                }
             }
-            onPositionChanged: mouse => {
-                if (!pressed)
-                    return;
-                Config.window.marginLeft = Math.max(0,
-                    Config.window.marginLeft + Math.round(mouse.x - pressX));
-                Config.window.marginTop = Math.max(0,
-                    Config.window.marginTop + Math.round(mouse.y - pressY));
+        }
+
+        Timer {
+            interval: 33
+            repeat: true
+            triggeredOnStart: true
+            running: dragArea.pressed
+            onTriggered: {
+                if (!cursorProc.running)
+                    cursorProc.running = true;
+            }
+        }
+
+        Process {
+            id: cursorProc
+            command: ["hyprctl", "cursorpos"]
+
+            stdout: SplitParser {
+                onRead: line => {
+                    const m = line.match(/(-?\d+),\s*(-?\d+)/);
+                    if (!m || !dragArea.pressed)
+                        return;
+                    const x = parseInt(m[1]);
+                    const y = parseInt(m[2]);
+                    if (!dragArea.haveBase) {
+                        dragArea.baseX = x;
+                        dragArea.baseY = y;
+                        dragArea.haveBase = true;
+                        return;
+                    }
+                    Config.window.marginLeft = Math.max(0,
+                        dragArea.baseMarginLeft + (x - dragArea.baseX));
+                    Config.window.marginTop = Math.max(0,
+                        dragArea.baseMarginTop + (y - dragArea.baseY));
+                }
             }
         }
 
