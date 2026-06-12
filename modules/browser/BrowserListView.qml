@@ -12,7 +12,9 @@ ListView {
     property bool canLoadMore: false
     property bool showQueueButton: true
 
-    signal activated(var item)
+    // index included because model conversion copies the JS row objects —
+    // the receiver can't find `item` in its source array by identity
+    signal activated(var item, int index)
     signal queueRequested(var item)
     signal loadMore
 
@@ -29,6 +31,7 @@ ListView {
         id: row
 
         required property var modelData
+        required property int index
 
         readonly property bool interactive: ["nav", "playlist", "album", "artist", "track"].includes(modelData.kind)
         readonly property bool isHeader: modelData.kind === "header"
@@ -118,7 +121,7 @@ ListView {
             cursorShape: row.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: {
                 if (row.interactive)
-                    list.activated(row.modelData);
+                    list.activated(row.modelData, row.index);
             }
         }
     }

@@ -1,3 +1,4 @@
+import QtQuick
 import Quickshell
 import Quickshell.Io
 import "modules"
@@ -5,6 +6,10 @@ import "services"
 
 ShellRoot {
     id: root
+
+    // singletons are lazy — touch Spotifyd at startup so the credential
+    // seed is refreshed before any spotifyd restart can hit a stale token
+    Component.onCompleted: Spotifyd.ensureFreshSeed()
 
     MusicWindow {
         id: window

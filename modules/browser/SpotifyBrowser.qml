@@ -299,21 +299,25 @@ Item {
 
     // ---- playback ----
 
-    function playTrack(item) {
+    function playTrack(item, rowIndex) {
         let body;
         if (item.contextUri !== "") {
             body = { context_uri: item.contextUri, offset: { position: item.index } };
         } else if (item.group) {
             // contextless lists (liked/recent/search): play loaded uris from
-            // the clicked row onward (API caps uris around 100)
+            // the clicked row onward (API caps uris around 100). The model
+            // copies row objects, so locate the row by list index, falling
+            // back to the first uri match.
+            let start = rowIndex !== undefined && items[rowIndex]?.uri === item.uri
+                ? rowIndex
+                : items.findIndex(r => r.kind === "track" && r.uri === item.uri);
             const uris = [];
-            let started = false;
-            for (const r of items) {
-                if (r === item)
-                    started = true;
-                if (started && r.kind === "track" && uris.length < 100)
-                    uris.push(r.uri);
+            for (let i = Math.max(0, start); i < items.length && uris.length < 100; i++) {
+                if (items[i].kind === "track")
+                    uris.push(items[i].uri);
             }
+            if (uris.length === 0)
+                uris.push(item.uri);
             body = { uris: uris };
         } else {
             body = { uris: [item.uri] };
@@ -324,9 +328,9 @@ Item {
         });
     }
 
-    function activate(item) {
+    function activate(item, rowIndex) {
         if (item.kind === "track")
-            playTrack(item);
+            playTrack(item, rowIndex);
         else if (item.kind === "playlist")
             openPlaylist(item);
         else if (item.kind === "album")
@@ -449,7 +453,7 @@ Item {
             Layout.fillHeight: true
             model: sb.items
             canLoadMore: sb.fetchMoreFn !== null && !sb.loadingMore
-            onActivated: item => sb.activate(item)
+            onActivated: (item, index) => sb.activate(item, index)
             onQueueRequested: item => {
                 SpotifyApi.addToQueue(item.uri, res => {
                     sb.flash = res.ok ? "Added to queue" : res.message;
