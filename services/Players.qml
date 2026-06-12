@@ -36,8 +36,18 @@ Singleton {
     readonly property string artUrl: active?.trackArtUrl || ""
     readonly property bool isPlaying: active?.isPlaying ?? false
     readonly property real length: active?.length ?? 0
-    readonly property bool canSeek: (active?.canSeek ?? false) && (active?.positionSupported ?? false)
-    readonly property bool volumeSupported: active?.volumeSupported ?? false
+    // capability props reference rev: when a player appears mid-session,
+    // quickshell sets canSeek/positionSupported without emitting their
+    // change signals, so plain bindings go stale. Direct reads are always
+    // correct — re-evaluating on any rev bump picks up the real value.
+    readonly property bool canSeek: {
+        rev;
+        return (active?.canSeek ?? false) && (active?.positionSupported ?? false);
+    }
+    readonly property bool volumeSupported: {
+        rev;
+        return active?.volumeSupported ?? false;
+    }
     readonly property real volume: active?.volume ?? 0
 
     // set true by UI while a position-consuming page is visible
@@ -107,6 +117,12 @@ Singleton {
             function onPlaybackStateChanged() {
                 root.rev++;
             }
+
+            // fires once track info loads on a fresh player — re-checks the
+            // capability props above, whose own change signals never arrive
+            function onMetadataChanged() {
+                root.rev++;
+            }
         }
         onObjectAdded: root.rev++
         onObjectRemoved: root.rev++
@@ -117,5 +133,23 @@ Singleton {
         repeat: true
         running: root.trackPosition && root.isPlaying && root.canSeek
         onTriggered: root.active.positionChanged()
+    }
+
+    // spotifyd flips CanSeek/Volume true a few seconds after its MPRIS
+    // object appears — after every rev bump above, still with no change
+    // signal. Nudge rev until the caps converge (or give up: the player
+    // genuinely doesn't support them).
+    property int _capRetries: 0
+    onActiveChanged: _capRetries = 0
+
+    Timer {
+        interval: 1000
+        repeat: true
+        running: root.hasPlayer && root._capRetries < 15
+            && (!root.canSeek || !root.volumeSupported)
+        onTriggered: {
+            root._capRetries++;
+            root.rev++;
+        }
     }
 }

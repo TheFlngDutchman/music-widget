@@ -109,7 +109,7 @@ Item {
             }
             const rows = res.data.items.filter(p => p).map(p => ({
                 kind: "playlist", icon: "󰲸", label: p.name,
-                sub: p.tracks.total + " tracks", id: p.id, uri: p.uri
+                sub: p.tracks ? p.tracks.total + " tracks" : "", id: p.id, uri: p.uri
             }));
             const next = offset + res.data.items.length;
             appendRows(gen, rows, res.data.next ? (() => fetchPlaylists(viewGen, next)) : null);

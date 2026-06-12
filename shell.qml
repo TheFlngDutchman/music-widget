@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import "modules"
+import "services"
 
 ShellRoot {
     id: root
@@ -29,6 +30,11 @@ ShellRoot {
         function tab(index: int): void {
             window.currentTab = index;
             window.visible = true;
+        }
+
+        // kick off (re)auth without opening the settings UI
+        function spotifyConnect(): void {
+            SpotifyAuth.begin();
         }
     }
 }

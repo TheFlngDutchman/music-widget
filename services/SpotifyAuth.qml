@@ -35,8 +35,10 @@ Singleton {
 
     function begin(newClientId) {
         errorMessage = "";
-        if (newClientId !== undefined && newClientId.trim() !== "")
+        if (newClientId !== undefined && newClientId.trim() !== "") {
             store.clientId = newClientId.trim();
+            _persist();
+        }
         if (store.clientId === "") {
             errorMessage = "Paste your Spotify app's Client ID first.";
             return;
@@ -53,12 +55,14 @@ Singleton {
     // drops the access token so the next withToken() refreshes
     function invalidateAccess() {
         store.accessToken = "";
+        _persist();
     }
 
     function signOut() {
         store.accessToken = "";
         store.refreshToken = "";
         store.expiresAt = 0;
+        _persist();
     }
 
     // cb(token | null, errKind). Proactively refreshes 60s before expiry;
@@ -98,11 +102,16 @@ Singleton {
         });
     }
 
+    function _persist() {
+        authFile.writeAdapter();
+    }
+
     function _storeTokens(data) {
         store.accessToken = data.access_token;
         if (data.refresh_token)
             store.refreshToken = data.refresh_token;
         store.expiresAt = Date.now() + data.expires_in * 1000;
+        _persist();
     }
 
     function _handleHelper(line) {
@@ -215,7 +224,10 @@ Singleton {
     FileView {
         id: authFile
         path: root.stateDir + "/auth.json"
-        onAdapterUpdated: writeAdapter()
+        // No onAdapterUpdated→writeAdapter here: per-assignment writes
+        // interleave badly when several properties change in one tick
+        // (operations get dropped and values mix old/new state). Mutators
+        // call root._persist() once after all assignments instead.
         onSaved: {
             // restart, not just start: a no-op if it's still mid-run would
             // leave a fresh token file world-readable
