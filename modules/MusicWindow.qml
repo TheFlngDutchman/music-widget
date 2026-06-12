@@ -13,13 +13,16 @@ PanelWindow {
     id: win
 
     readonly property string anchorCfg: Config.window.anchor
+    // floating pins top-left and uses the top/left margins as a free
+    // position; the header becomes a drag handle
+    readonly property bool floating: anchorCfg === "floating"
     property int currentTab: 0 // 0 controls, 1 visualizer, 2 playlists, 3 settings
 
     anchors {
-        top: win.anchorCfg.indexOf("top") !== -1
-        bottom: win.anchorCfg.indexOf("bottom") !== -1
-        left: win.anchorCfg.indexOf("left") !== -1
-        right: win.anchorCfg.indexOf("right") !== -1
+        top: win.floating || win.anchorCfg.indexOf("top") !== -1
+        bottom: !win.floating && win.anchorCfg.indexOf("bottom") !== -1
+        left: win.floating || win.anchorCfg.indexOf("left") !== -1
+        right: !win.floating && win.anchorCfg.indexOf("right") !== -1
     }
 
     margins {
@@ -64,6 +67,35 @@ PanelWindow {
         color: Theme.bg
         border.color: Theme.border
         border.width: 1
+
+        // drag-to-move via the header strip in floating mode. Sits below
+        // the ColumnLayout, so the header buttons still get their clicks.
+        // Moving the window by the pointer delta keeps the grab point
+        // stationary in window coordinates, so deltas stay small.
+        MouseArea {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 34
+            enabled: win.floating
+            cursorShape: win.floating ? Qt.SizeAllCursor : Qt.ArrowCursor
+
+            property real pressX: 0
+            property real pressY: 0
+
+            onPressed: mouse => {
+                pressX = mouse.x;
+                pressY = mouse.y;
+            }
+            onPositionChanged: mouse => {
+                if (!pressed)
+                    return;
+                Config.window.marginLeft = Math.max(0,
+                    Config.window.marginLeft + Math.round(mouse.x - pressX));
+                Config.window.marginTop = Math.max(0,
+                    Config.window.marginTop + Math.round(mouse.y - pressY));
+            }
+        }
 
         ColumnLayout {
             anchors.fill: parent

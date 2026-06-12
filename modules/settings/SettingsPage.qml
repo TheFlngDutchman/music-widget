@@ -155,7 +155,7 @@ Item {
                     spacing: 2
 
                     Repeater {
-                        model: ["top-left", "top", "top-right", "bottom-left", "bottom", "bottom-right"]
+                        model: ["top-left", "top", "top-right", "bottom-left", "bottom", "bottom-right", "floating"]
 
                         Chip {
                             required property string modelData
@@ -164,6 +164,21 @@ Item {
                             onClicked: Config.window.anchor = modelData
                         }
                     }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                visible: Config.window.anchor === "floating"
+                spacing: 4
+
+                RowLabel { text: "" }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    text: "drag the widget by its header to move it"
+                    font.pixelSize: Theme.fontSize - 2
+                    opacity: 0.35
                 }
             }
 
