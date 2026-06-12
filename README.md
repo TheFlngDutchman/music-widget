@@ -4,6 +4,8 @@
 
 A [Quickshell](https://quickshell.org) popup for Waybar / Hyprland that puts playback controls, a cava audio visualizer, Spotify browsing, and MPD file navigation into one floating layer-shell window.
 
+![demo](demo.gif)
+
 Formerly a Python/GTK4 app — rewritten in QML for instant response times: the widget runs resident as a user service (the Waybar button only toggles visibility, zero cold start), playback state is fully event-driven over MPRIS (no polling), and Spotify responses are cached.
 
 ## Features
@@ -11,9 +13,9 @@ Formerly a Python/GTK4 app — rewritten in QML for instant response times: the 
 - **Transport controls** — play/pause, previous, next, draggable seek bar with a live position ticker, volume, shuffle, repeat; album art
 - **Cava visualizer** — 7 canvas styles (bars, wave, blocks, flame, mirror, dots, ring) with peak-hold caps; sensitivity, bar count, mono/stereo, and smoothing tweakable live from a gear popover; cava only runs while the tab is visible
 - **Spotify browser** — playlists, Liked Songs, Saved Albums, Recently Played, queue (with add-to-queue on every row), catalog search, infinite scroll, breadcrumb navigation; responses cached with per-section TTLs
-- **Spotify streaming** — headless playback through spotifyd running as a systemd user service; one-click authenticate from the widget
+- **Spotify streaming** — headless playback through spotifyd running as a systemd user service; the widget seeds its credentials from your one Spotify login, no second auth flow
 - **Local / MPD browser** — browse and play your music directory via mpc
-- **Settings tab** — window anchor/size/margins/monitor, font, album-art size, per-color theme overrides, Spotify and spotifyd status — all applied live and written back to the config file
+- **Settings tab** — window anchor/size/margins/monitor (including a free-floating mode with drag-to-move), font, album-art size, per-color theme overrides, Spotify and spotifyd status — all applied live and written back to the config file
 - **Theme-aware** — follows the [Omarchy](https://omarchy.org) theme live (no restart), with optional per-color overrides
 - **Waybar-friendly** — separate layer-shell surface with no exclusive zone; margins measure from the bar's edge
 
@@ -21,6 +23,10 @@ Formerly a Python/GTK4 app — rewritten in QML for instant response times: the 
 
 - **Arch Linux** (developed on Omarchy), Hyprland or another wlroots compositor
 - `quickshell`, `cava`, `spotifyd`, `mpd`, `mpc`, `playerctl`
+
+### Quickshell compatibility
+
+The widget is a self-contained Quickshell config at `~/.config/quickshell/music-widget`, run as its own instance (`qs -c music-widget`). It does **not** become your shell: it's a plain layer-shell surface with no exclusive zone, so it coexists with Waybar today and won't conflict with any other Quickshell config you run (e.g. when Omarchy moves its bar to Quickshell). One caveat: the `quickshell` package tracks Qt closely — if the widget fails to start after a system upgrade, reinstall/rebuild `quickshell` against the new Qt.
 
 ## Install
 
@@ -58,7 +64,9 @@ The Playlists → Spotify tab walks you through a one-time OAuth flow:
 2. Add `http://127.0.0.1:19872/login` as a redirect URI (copy/paste from the widget).
 3. Paste the Client ID, click Connect, approve in the browser.
 
-Tokens live in `~/.local/state/music-widget/auth.json` (chmod 600) and refresh silently. spotifyd gets its own credentials via the widget's Authenticate button (Settings tab or the strip above the browser). Playback control requires **Spotify Premium** (Web API limitation).
+That's the only login: the widget seeds spotifyd's credentials from the same authorization automatically (and re-seeds them at every start, since the token kind spotifyd accepts is short-lived). If you ever want spotifyd to hold its own permanent credentials instead, the Authenticate button in Settings runs the classic `spotifyd authenticate` flow and the widget will leave those untouched.
+
+Tokens live in `~/.local/state/music-widget/auth.json` (chmod 600) and refresh silently. Playback control requires **Spotify Premium** (Web API limitation).
 
 If spotifyd can't reach Spotify on hostile networks (port 4070 blocked), set `proxy` in `~/.config/spotifyd/spotifyd.conf` — see `man spotifyd`.
 
@@ -68,4 +76,4 @@ If spotifyd can't reach Spotify on hostile networks (port 4070 blocked), set `pr
 ./uninstall.sh
 ```
 
-Removes the service, symlink and launchers; preserves your config and tokens, and asks before disabling spotifyd.
+Removes the service, symlink, launchers and the injected Waybar modules (with a `.bak` backup of your Waybar config). Asks before disabling spotifyd, and optionally removes your config and tokens too — both are kept by default.
