@@ -14,6 +14,7 @@ OLD_VENV="${HOME}/.local/share/music-widget/venv"
 
 ok()   { echo "✓ $*"; }
 info() { echo "→ $*"; }
+warn() { echo "! $*"; }
 
 info "Stopping widget service"
 systemctl --user disable --now music-widget.service 2>/dev/null || true
@@ -43,6 +44,42 @@ if [ -d "$OLD_VENV" ]; then
     ok "Removed old Python venv"
 fi
 
+# remove the injected Waybar modules (reverses install.sh's injection)
+WAYBAR_CFG="${HOME}/.config/waybar/config.jsonc"
+if [ -f "$WAYBAR_CFG" ] && grep -q '"custom/music-title"' "$WAYBAR_CFG"; then
+    info "Removing music-widget modules from Waybar config"
+    cp "$WAYBAR_CFG" "${WAYBAR_CFG}.bak"
+    python3 - "$WAYBAR_CFG" <<'PYEOF'
+import re, sys
+
+path = sys.argv[1]
+with open(path) as f:
+    content = f.read()
+
+# module definitions: "custom/music-X": { ... } with optional leading comma
+content = re.sub(
+    r',?\s*"custom/music-(?:prev|play|next|title)"\s*:\s*\{[^{}]*\}',
+    '', content)
+# module names inside modules-* arrays
+content = re.sub(r'\s*"custom/music-(?:prev|play|next|title)"\s*,?', '\n    ', content)
+# tidy any comma left dangling before a closing bracket
+content = re.sub(r',(\s*[\]}])', r'\1', content)
+
+with open(path, 'w') as f:
+    f.write(content)
+PYEOF
+    ok "Removed Waybar modules (backup: ${WAYBAR_CFG}.bak)"
+    if command -v omarchy &>/dev/null && omarchy restart waybar 2>/dev/null; then
+        ok "Restarted Waybar via omarchy"
+    elif pkill -SIGUSR2 waybar 2>/dev/null; then
+        ok "Reloaded Waybar via SIGUSR2"
+    elif systemctl --user restart waybar 2>/dev/null; then
+        ok "Restarted Waybar via systemd"
+    else
+        warn "Could not restart Waybar — restart it manually"
+    fi
+fi
+
 if systemctl --user is-enabled spotifyd.service &>/dev/null; then
     echo
     read -r -p "Disable spotifyd too? Other tools may use it. [y/N] " reply
@@ -59,6 +96,5 @@ echo
 echo "Preserved (delete manually if you want a clean slate):"
 echo "  $CFG_DIR                            — widget config"
 echo "  ${HOME}/.local/state/music-widget   — Spotify tokens"
-echo "  Waybar custom/music-* modules in ~/.config/waybar/config.jsonc"
 
 ok "Uninstalled music-widget."
