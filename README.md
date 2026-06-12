@@ -2,56 +2,53 @@
 
 # music-widget
 
-A GTK4/Libadwaita popup for Waybar / Hyprland that puts playback controls, a cava audio visualizer, Spotify browsing, and MPD file navigation into one floating window anchored to the top-right of the screen.
+A [Quickshell](https://quickshell.org) popup for Waybar / Hyprland that puts playback controls, a cava audio visualizer, Spotify browsing, and MPD file navigation into one floating layer-shell window.
+
+Formerly a Python/GTK4 app — rewritten in QML for instant response times: the widget runs resident as a user service (the Waybar button only toggles visibility, zero cold start), playback state is fully event-driven over MPRIS (no polling), and Spotify responses are cached.
 
 ## Features
 
-- **Transport controls** — play/pause, previous, next, seek (draggable progress bar), volume slider
-- **Shuffle / repeat** — toggle from the controls page, persists across context changes
-- **Album art** — fetched from URL or local file, displayed at 72×72 with crossfade
-- **Cava visualizer** — 7 draw styles (bars, wave, blocks, flame, mirror, dots, ring) on a Cairo canvas; live-tweakable sensitivity, bar count, mono/stereo, smoothing from a gear popover
-- **Spotify browser** — browse playlists, Liked Songs, Saved Albums, Recently Played; search catalog (tracks, albums, artists, playlists); view and clear queue; add-to-queue button on every track; paginated infinite scroll; breadcrumb back navigation
-- **Spotify streaming** — spotifyd lifecycle managed by the widget (auto-start, OAuth bootstrap, device discovery, proxy workaround for port 4070); no separate Spotify desktop app or TUI needed
-- **Local / MPD browser** — browse your music directory, navigate into folders, play files; path bar for manual entry; Start MPD button if the daemon isn't running
-- **In-memory filter** — type to filter any list view locally (no network call)
-- **Tabbed interface** — three tabs: Controls, Visualizer, Playlists (Spotify + Local)
-- **Theme-aware** — pulls accent colors from the Omarchy theme system (`~/.config/omarchy/current/theme/`), falls back to built-in defaults
-- **Layer-shell anchored** — docks to the top-right of the screen via gtk4-layer-shell (falls back to a plain window if the library isn't available)
-
-## How it works
-
-The widget reads the current track via **playerctl** (spotifyd, spotify, MPD). When a Spotify session is authenticated it uses the **Spotify Web API** (spotipy) for richer control — browse playlists, Liked Songs, Saved Albums, Recently Played, search the catalog, and manage the playback queue. Playback itself streams through **spotifyd**, whose lifecycle the widget owns (start, stop, OAuth bootstrap). For local files it browses your **MPD** library.
-
-The **visualizer** spawns **cava** as a subprocess piping raw ASCII frame data to stdout, reads it on a background thread, then draws via **Cairo** on a `Gtk.DrawingArea`. Seven draw styles are available: bars, wave, blocks, flame, mirror, dots, ring. Sensitivity, bar count, mono/stereo, and smoothing are tweakable live from a settings popover.
-
-Colors are pulled from the Omarchy theme system (`~/.config/omarchy/current/theme/`), with a fallback to built-in defaults.
+- **Transport controls** — play/pause, previous, next, draggable seek bar with a live position ticker, volume, shuffle, repeat; album art
+- **Cava visualizer** — 7 canvas styles (bars, wave, blocks, flame, mirror, dots, ring) with peak-hold caps; sensitivity, bar count, mono/stereo, and smoothing tweakable live from a gear popover; cava only runs while the tab is visible
+- **Spotify browser** — playlists, Liked Songs, Saved Albums, Recently Played, queue (with add-to-queue on every row), catalog search, infinite scroll, breadcrumb navigation; responses cached with per-section TTLs
+- **Spotify streaming** — headless playback through spotifyd running as a systemd user service; one-click authenticate from the widget
+- **Local / MPD browser** — browse and play your music directory via mpc
+- **Settings tab** — window anchor/size/margins/monitor, font, album-art size, per-color theme overrides, Spotify and spotifyd status — all applied live and written back to the config file
+- **Theme-aware** — follows the [Omarchy](https://omarchy.org) theme live (no restart), with optional per-color overrides
+- **Waybar-friendly** — separate layer-shell surface with no exclusive zone; margins measure from the bar's edge
 
 ## Requirements
 
-- **Arch Linux** (developed on [Omarchy](https://omarchy.org))
-- `playerctl`, `cava`, `spotifyd`, `mpd`, `mpc`, `gtk4`, `libadwaita`, `gtk4-layer-shell`, `python`, `python-gobject`, `uv`
+- **Arch Linux** (developed on Omarchy), Hyprland or another wlroots compositor
+- `quickshell`, `cava`, `spotifyd`, `mpd`, `mpc`, `playerctl`
 
 ## Install
 
 ```bash
-./install.sh
+./install.sh            # add --install-deps to pull missing packages
 ```
 
-The installer is idempotent and safe to re-run:
+Idempotent and safe to re-run:
 
-1. Checks pacman for system deps; lists missing packages (or installs them with `--install-deps`).
-2. Creates a uv-managed venv at `~/.local/share/music-widget/venv` with `--system-site-packages` so `gi` (PyGObject) is available.
-3. Installs the package via `uv pip install`.
-4. Writes a launcher wrapper to `~/.local/bin/music-widget` (LD_PRELOADs libgtk4-layer-shell.so) and copies `music-waybar-title` into place.
-5. Seeds default config at `~/.config/music-widget/` if missing.
-6. Optionally installs a `.desktop` file and injects the music modules into `~/.config/waybar/config.jsonc`.
+1. Checks system deps (installs with `--install-deps`).
+2. Symlinks the repo to `~/.config/quickshell/music-widget`.
+3. Installs and enables `music-widget.service` (user) so the widget is always resident.
+4. Seeds `~/.config/spotifyd/spotifyd.conf` (device "Music Widget", MPRIS on) and enables spotifyd.
+5. Migrates an old `config.toml` to `config.json` if you're upgrading from the GTK version.
+6. Installs the `music-widget` toggle command and `music-waybar-title`.
+7. Injects the Waybar modules if missing (see `docs/waybar.jsonc`).
 
-## Waybar integration
+Toggle from anywhere:
 
-The installer can auto-inject these modules into your Waybar config. See `docs/waybar.jsonc` for the snippet:
+```bash
+music-widget                                    # wrapper, starts the service if needed
+qs -c music-widget ipc call window toggle       # direct IPC
+qs -c music-widget ipc call window tab 2        # open straight to a tab (0–3)
+```
 
-- `custom/music-prev`, `custom/music-play`, `custom/music-next` — transport buttons
-- `custom/music-title` — scrolling track title (click to open the widget)
+## Configuration
+
+`~/.config/music-widget/config.json` — every field is editable from the in-app Settings tab (gear icon), and hand edits apply live in the other direction too. Empty color strings mean "follow the omarchy theme".
 
 ## Spotify setup
 
@@ -59,9 +56,11 @@ The Playlists → Spotify tab walks you through a one-time OAuth flow:
 
 1. Create a Spotify Developer app at https://developer.spotify.com/dashboard.
 2. Add `http://127.0.0.1:19872/login` as a redirect URI (copy/paste from the widget).
-3. Paste the Client ID, click Connect, finish the PKCE flow in your browser.
+3. Paste the Client ID, click Connect, approve in the browser.
 
-The widget also runs `spotifyd authenticate` to give spotifyd its own credentials for actual audio playback. Playback control requires **Spotify Premium** (Web API limitation).
+Tokens live in `~/.local/state/music-widget/auth.json` (chmod 600) and refresh silently. spotifyd gets its own credentials via the widget's Authenticate button (Settings tab or the strip above the browser). Playback control requires **Spotify Premium** (Web API limitation).
+
+If spotifyd can't reach Spotify on hostile networks (port 4070 blocked), set `proxy` in `~/.config/spotifyd/spotifyd.conf` — see `man spotifyd`.
 
 ## Uninstall
 
@@ -69,4 +68,4 @@ The widget also runs `spotifyd authenticate` to give spotifyd its own credential
 ./uninstall.sh
 ```
 
-Removes the venv and launchers; preserves `~/.config/music-widget/`.
+Removes the service, symlink and launchers; preserves your config and tokens, and asks before disabling spotifyd.

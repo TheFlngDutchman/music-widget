@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
-# music-widget installer.
+# music-widget installer (Quickshell edition).
 #
 # What this does (idempotent, re-runnable):
 #   1. Verifies system packages (or installs them with --install-deps).
-#   2. Creates a uv-managed venv at ~/.local/share/music-widget/venv
-#      with --system-site-packages so PyGObject is available.
-#   3. Installs the widget into that venv via `uv pip install`.
-#   4. Symlinks `music-widget` and `music-waybar-title` into ~/.local/bin.
-#   5. Seeds default config under ~/.config/music-widget/ if not present.
-#   6. Prints the Waybar snippet (does NOT touch your waybar config).
+#   2. Symlinks this repo to ~/.config/quickshell/music-widget.
+#   3. Installs + enables the music-widget user service (resident widget,
+#      zero cold-start — the Waybar button only toggles visibility).
+#   4. Seeds ~/.config/spotifyd/spotifyd.conf and enables spotifyd.
+#   5. Migrates an old config.toml to config.json (once, if present).
+#   6. Installs ~/.local/bin/music-widget (toggle) and music-waybar-title.
+#   7. Injects Waybar modules if missing (on-click toggles the widget).
+#   8. Removes the old Python install (venv) if it's still around.
 
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${HOME}/.local/share/music-widget/venv"
 BIN_DIR="${HOME}/.local/bin"
 CFG_DIR="${HOME}/.config/music-widget"
+QS_LINK="${HOME}/.config/quickshell/music-widget"
+UNIT_DIR="${HOME}/.config/systemd/user"
 APPS_DIR="${HOME}/.local/share/applications"
 DESKTOP_FILE="${APPS_DIR}/music-widget.desktop"
+SPOTIFYD_CONF="${HOME}/.config/spotifyd/spotifyd.conf"
+OLD_VENV="${HOME}/.local/share/music-widget/venv"
 
-PKGS=(playerctl cava spotifyd mpd mpc gtk4 libadwaita gtk4-layer-shell python python-gobject)
-# uv may be installed standalone (not via pacman); we'll check the binary too.
+PKGS=(quickshell cava spotifyd mpd mpc playerctl)
 
 color() { printf "\033[%sm%s\033[0m" "$1" "$2"; }
 info()  { echo "$(color "1;34" "→") $*"; }
@@ -29,19 +33,14 @@ warn()  { echo "$(color "1;33" "!") $*"; }
 die()   { echo "$(color "1;31" "✗") $*" >&2; exit 1; }
 
 INSTALL_DEPS=0
-LAUNCHER_MODE=ask   # ask|yes|no
 for arg in "$@"; do
     case "$arg" in
         --install-deps) INSTALL_DEPS=1 ;;
-        --with-launcher) LAUNCHER_MODE=yes ;;
-        --no-launcher)   LAUNCHER_MODE=no  ;;
         -h|--help)
-            sed -n '2,20p' "$0"
+            sed -n '2,14p' "$0"
             echo
             echo "Flags:"
-            echo "  --install-deps    pass missing packages to 'omarchy pkg add'"
-            echo "  --with-launcher   install ~/.local/share/applications entry without asking"
-            echo "  --no-launcher     skip the .desktop entry prompt"
+            echo "  --install-deps    install missing packages (omarchy pkg add / pacman)"
             exit 0
             ;;
         *) die "Unknown flag: $arg" ;;
@@ -53,171 +52,146 @@ info "Checking system dependencies"
 
 missing=()
 for p in "${PKGS[@]}"; do
-    if ! pacman -Q "$p" &>/dev/null; then
-        missing+=("$p")
-    fi
+    pacman -Q "$p" &>/dev/null || missing+=("$p")
 done
-
-if ! command -v uv &>/dev/null; then
-    # uv might not be pacman-managed (curl-installed binaries are common).
-    warn "uv binary not found on PATH"
-    missing+=(uv)
-fi
 
 if [ ${#missing[@]} -gt 0 ]; then
     if [ "$INSTALL_DEPS" -eq 1 ]; then
-        info "Installing missing packages via omarchy pkg add: ${missing[*]}"
+        info "Installing: ${missing[*]}"
         if command -v omarchy &>/dev/null; then
             omarchy pkg add "${missing[@]}"
         else
-            warn "omarchy not on PATH — falling back to pacman"
             sudo pacman -S --needed --noconfirm "${missing[@]}"
         fi
     else
         warn "Missing packages: ${missing[*]}"
-        if command -v omarchy &>/dev/null; then
-            echo "  Install with: omarchy pkg add ${missing[*]}"
-        else
-            echo "  Install with: sudo pacman -S --needed ${missing[*]}"
-        fi
+        echo "  Install with: sudo pacman -S --needed ${missing[*]}"
         echo "  Or re-run with: $0 --install-deps"
         die "System deps not satisfied"
     fi
 fi
 ok "System dependencies OK"
 
-# ── 2. uv venv ─────────────────────────────────────────────────────────
-info "Preparing venv at $VENV_DIR"
-mkdir -p "$(dirname "$VENV_DIR")"
-
-# Use the system Python so we can pick up the pacman-managed PyGObject
-# from /usr/lib/pythonX.Y/site-packages. If we let uv pick its own Python,
-# `import gi` fails because PyGObject is only installed for the system one.
-SYS_PYTHON="$(command -v python3 || true)"
-if [ -z "$SYS_PYTHON" ]; then
-    die "python3 not found on PATH"
-fi
-SYS_PY_VER="$("$SYS_PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-
-NEED_REBUILD=0
-if [ -d "$VENV_DIR" ]; then
-    EXISTING_VER="$("$VENV_DIR/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
-    if [ "$EXISTING_VER" != "$SYS_PY_VER" ]; then
-        warn "Venv was built against Python $EXISTING_VER but system Python is $SYS_PY_VER — rebuilding"
-        rm -rf "$VENV_DIR"
-        NEED_REBUILD=1
-    fi
-fi
-
-if [ ! -d "$VENV_DIR" ]; then
-    uv venv --python "$SYS_PYTHON" --system-site-packages "$VENV_DIR"
-    ok "Created venv (Python $SYS_PY_VER)"
+# ── 2. Quickshell config symlink ───────────────────────────────────────
+info "Linking $QS_LINK"
+mkdir -p "$(dirname "$QS_LINK")"
+if [ -L "$QS_LINK" ] || [ ! -e "$QS_LINK" ]; then
+    ln -sfn "$REPO_DIR" "$QS_LINK"
+    ok "Symlinked → $REPO_DIR"
 else
-    ok "Venv already exists (Python $SYS_PY_VER)"
+    die "$QS_LINK exists and is not a symlink — move it aside and re-run"
 fi
 
-# ── 3. Install the package ─────────────────────────────────────────────
-info "Installing music-widget into venv"
-uv pip install --python "$VENV_DIR/bin/python" --upgrade "$REPO_DIR" >/dev/null
-ok "Installed package"
+# ── 3. Widget user service ─────────────────────────────────────────────
+info "Installing music-widget.service"
+mkdir -p "$UNIT_DIR"
+cat > "$UNIT_DIR/music-widget.service" <<'EOF'
+[Unit]
+Description=Music widget (Quickshell)
+PartOf=graphical-session.target
+After=graphical-session.target
 
-# ── 4. Symlinks ────────────────────────────────────────────────────────
+[Service]
+ExecStart=/usr/bin/qs -c music-widget
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+systemctl --user daemon-reload
+systemctl --user enable music-widget.service >/dev/null 2>&1
+# restart (not start): pick up code changes when re-running the installer
+systemctl --user restart music-widget.service
+ok "music-widget.service enabled and running"
+
+# ── 4. spotifyd ────────────────────────────────────────────────────────
+if [ ! -f "$SPOTIFYD_CONF" ]; then
+    info "Seeding $SPOTIFYD_CONF"
+    mkdir -p "$(dirname "$SPOTIFYD_CONF")"
+    cat > "$SPOTIFYD_CONF" <<EOF
+[global]
+device_name = "Music Widget"
+device_type = "computer"
+use_mpris = true
+cache_path = "${HOME}/.cache/spotifyd"
+EOF
+    ok "Wrote spotifyd.conf"
+else
+    ok "spotifyd.conf already exists — preserved"
+fi
+systemctl --user enable --now spotifyd.service >/dev/null 2>&1 || true
+ok "spotifyd enabled ($(systemctl --user is-active spotifyd.service || true))"
+if [ ! -f "${HOME}/.cache/spotifyd/oauth/credentials.json" ]; then
+    warn "spotifyd has no credentials yet — use Settings → spotifyd → Authenticate in the widget"
+fi
+
+# ── 5. Config migration (old TOML → JSON) ──────────────────────────────
+OLD_TOML="$CFG_DIR/config.toml"
+NEW_JSON="$CFG_DIR/config.json"
+if [ -f "$OLD_TOML" ] && [ ! -f "$NEW_JSON" ]; then
+    info "Migrating config.toml → config.json"
+    python3 - "$OLD_TOML" "$NEW_JSON" <<'PYEOF'
+import json, sys, tomllib
+
+old = tomllib.load(open(sys.argv[1], "rb"))
+w, s, v = old.get("widget", {}), old.get("spotify", {}), old.get("visualizer", {})
+new = {
+    "window": {
+        "width": w.get("width", 560),
+        "height": w.get("height", 320),
+        "marginTop": w.get("margin_top", 4),
+        "marginRight": w.get("margin_right", 4),
+    },
+    "spotify": {"redirectPort": s.get("redirect_port", 19872)},
+    "visualizer": {k: v[o] for k, o in [
+        ("style", "style"), ("bars", "bars"), ("sensitivity", "sensitivity"),
+        ("channels", "channels"), ("smoothing", "smoothing"),
+    ] if o in v},
+}
+json.dump(new, open(sys.argv[2], "w"), indent=2)
+PYEOF
+    ok "Migrated (old file kept at $OLD_TOML)"
+fi
+
+# ── 6. Launchers ───────────────────────────────────────────────────────
 info "Installing launchers to $BIN_DIR"
 mkdir -p "$BIN_DIR"
 
-# gtk4-layer-shell must be loaded before libwayland-client. We can't control
-# linker order from Python, so the launcher LD_PRELOADs it. Without this the
-# window falls back to a plain toplevel and Hyprland positions it via the
-# legacy windowrule instead of docking properly to Waybar.
-LAYER_SHELL_LIB=""
-for cand in /usr/lib/libgtk4-layer-shell.so /usr/lib64/libgtk4-layer-shell.so; do
-    if [ -e "$cand" ]; then
-        LAYER_SHELL_LIB="$cand"
-        break
-    fi
-done
-
-# Replace any prior symlink with a wrapper script.
-rm -f "$BIN_DIR/music-widget"
-cat > "$BIN_DIR/music-widget" <<EOF
+cat > "$BIN_DIR/music-widget" <<'EOF'
 #!/usr/bin/env bash
-# music-widget launcher — autogenerated by install.sh.
-LAYER_SHELL_LIB="${LAYER_SHELL_LIB}"
-if [ -n "\$LAYER_SHELL_LIB" ]; then
-    export LD_PRELOAD="\${LD_PRELOAD:+\$LD_PRELOAD:}\$LAYER_SHELL_LIB"
+# music-widget toggle — autogenerated by install.sh.
+# The widget runs resident as a user service; this only flips visibility.
+if ! qs -c music-widget ipc call window toggle 2>/dev/null; then
+    systemctl --user start music-widget.service
+    for _ in 1 2 3 4 5; do
+        sleep 0.4
+        qs -c music-widget ipc call window open 2>/dev/null && exit 0
+    done
+    echo "music-widget: could not reach the widget service" >&2
+    exit 1
 fi
-exec "${VENV_DIR}/bin/music-widget" "\$@"
 EOF
 chmod +x "$BIN_DIR/music-widget"
 
 install -m 755 "$REPO_DIR/bin/music-waybar-title" "$BIN_DIR/music-waybar-title"
 ok "Installed music-widget and music-waybar-title"
 
-# ── 5. Seed configs ────────────────────────────────────────────────────
-info "Seeding default config (if missing) in $CFG_DIR"
-mkdir -p "$CFG_DIR"
-
-seed() {
-    local src="$1" dst="$2"
-    if [ ! -e "$dst" ]; then
-        cp "$src" "$dst"
-        ok "Wrote $dst"
-    else
-        ok "$dst already exists — preserved"
-    fi
-}
-
-seed "$REPO_DIR/data/cava.conf"           "$CFG_DIR/cava.conf"
-seed "$REPO_DIR/data/default-config.toml" "$CFG_DIR/config.toml"
-
-# ── 6. App launcher (.desktop) entry ───────────────────────────────────
-install_launcher_entry() {
-    mkdir -p "$APPS_DIR"
-    install -m 644 "$REPO_DIR/data/music-widget.desktop" "$DESKTOP_FILE"
-    if command -v update-desktop-database &>/dev/null; then
-        update-desktop-database "$APPS_DIR" &>/dev/null || true
-    fi
-    ok "Installed $DESKTOP_FILE (visible in Walker / app launcher)"
-}
-
-case "$LAUNCHER_MODE" in
-    yes)
-        install_launcher_entry
-        ;;
-    no)
-        info "Skipping app-launcher entry (--no-launcher)"
-        ;;
-    ask)
-        echo
-        if [ -e "$DESKTOP_FILE" ]; then
-            prompt="Reinstall app-launcher entry ($DESKTOP_FILE)? [Y/n] "
-        else
-            prompt="Install app-launcher entry so 'Music Widget' shows up in Walker / your launcher? [Y/n] "
-        fi
-        # Default Yes; if stdin isn't a TTY (e.g. piped), assume Yes.
-        if [ -t 0 ]; then
-            read -r -p "$prompt" reply
-        else
-            reply=""
-        fi
-        case "${reply,,}" in
-            ""|y|yes) install_launcher_entry ;;
-            *)        info "Skipping app-launcher entry" ;;
-        esac
-        ;;
-esac
+mkdir -p "$APPS_DIR"
+install -m 644 "$REPO_DIR/data/music-widget.desktop" "$DESKTOP_FILE"
+command -v update-desktop-database &>/dev/null \
+    && update-desktop-database "$APPS_DIR" &>/dev/null || true
+ok "Installed launcher entry"
 
 # ── 7. Waybar config ───────────────────────────────────────────────────
 WAYBAR_CFG="${HOME}/.config/waybar/config.jsonc"
 
 inject_waybar() {
     if [ ! -f "$WAYBAR_CFG" ]; then
-        warn "No waybar config at $WAYBAR_CFG"
-        info "Snippet saved at docs/waybar.jsonc — paste it manually."
+        warn "No waybar config at $WAYBAR_CFG — see docs/waybar.jsonc for the snippet"
         return
     fi
 
-    # Check if module *definition* (key with colon) is already present.
     if python3 -c "
 import re, sys
 text = open('$WAYBAR_CFG').read()
@@ -269,7 +243,6 @@ defs = '''\
     "tooltip": false
   }'''
 
-# Inject module names at the start of the modules-right array.
 inject = ',\n    '.join(names) + ','
 new = re.sub(
     r'("modules-right"\s*:\s*\[)',
@@ -278,7 +251,6 @@ new = re.sub(
     count=1,
 )
 
-# Append module definitions before the final closing brace.
 pos = new.rfind('\n}')
 if pos != -1:
     new = new[:pos] + ',\n\n' + defs + '\n' + new[pos:]
@@ -289,8 +261,8 @@ PYEOF
 
     if [ $? -eq 0 ]; then
         ok "Injected music-widget into $WAYBAR_CFG (backup: ${WAYBAR_CFG}.bak)"
-        if command -v omarchy &>/dev/null; then
-            omarchy restart waybar && ok "Restarted Waybar via omarchy"
+        if command -v omarchy &>/dev/null && omarchy restart waybar 2>/dev/null; then
+            ok "Restarted Waybar via omarchy"
         elif pkill -SIGUSR2 waybar 2>/dev/null; then
             ok "Reloaded Waybar via SIGUSR2"
         elif systemctl --user restart waybar 2>/dev/null; then
@@ -307,4 +279,12 @@ PYEOF
 
 inject_waybar
 
-ok "Done. Launch: music-widget"
+# ── 8. Old Python install cleanup ──────────────────────────────────────
+if [ -d "$OLD_VENV" ]; then
+    info "Removing old Python venv"
+    rm -rf "$OLD_VENV"
+    rmdir --ignore-fail-on-non-empty "$(dirname "$OLD_VENV")" 2>/dev/null || true
+    ok "Removed $OLD_VENV"
+fi
+
+ok "Done. Toggle with the Waybar button or: music-widget"

@@ -42,6 +42,8 @@ PanelWindow {
 
     implicitWidth: Config.window.width
     implicitHeight: Config.window.height
+    // start hidden: the service launches at login, the bar button reveals it
+    visible: false
     color: "transparent"
     // reserve nothing, but respect other zones (waybar) — margins measure
     // from the bar's edge, not the screen edge
