@@ -92,9 +92,20 @@ if systemctl --user is-enabled spotifyd.service &>/dev/null; then
     esac
 fi
 
-echo
-echo "Preserved (delete manually if you want a clean slate):"
-echo "  $CFG_DIR                            — widget config"
-echo "  ${HOME}/.local/state/music-widget   — Spotify tokens"
+STATE_DIR="${HOME}/.local/state/music-widget"
+if [ -d "$CFG_DIR" ] || [ -d "$STATE_DIR" ]; then
+    echo
+    echo "Config and auth data:"
+    [ -d "$CFG_DIR" ]   && echo "  $CFG_DIR — widget config"
+    [ -d "$STATE_DIR" ] && echo "  $STATE_DIR — Spotify tokens"
+    read -r -p "Remove these too? [y/N] " reply
+    case "${reply,,}" in
+        y|yes)
+            rm -rf "$CFG_DIR" "$STATE_DIR"
+            ok "Removed config and tokens"
+            ;;
+        *) info "Preserved — a reinstall will pick them up again" ;;
+    esac
+fi
 
 ok "Uninstalled music-widget."
