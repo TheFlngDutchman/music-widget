@@ -12,9 +12,11 @@ Singleton {
 
     readonly property string stateDir: Quickshell.env("HOME") + "/.local/state/music-widget"
     readonly property string redirectUri: "http://127.0.0.1:" + Config.spotify.redirectPort + "/login"
+    // "streaming" lets the same token authenticate spotifyd (librespot
+    // accepts it as token credentials), so the user only approves once
     readonly property string scopes: "user-read-playback-state user-modify-playback-state "
         + "user-read-currently-playing playlist-read-private playlist-read-collaborative "
-        + "user-library-read user-read-recently-played"
+        + "user-library-read user-read-recently-played streaming"
 
     property bool authorizing: false
     property string errorMessage: ""
@@ -32,6 +34,9 @@ Singleton {
     property string _verifier: ""
     property bool _refreshing: false
     property var _waiters: []
+
+    // emitted after a fresh end-to-end authorization (not on refresh)
+    signal authorized()
 
     function begin(newClientId) {
         errorMessage = "";
@@ -142,6 +147,7 @@ Singleton {
                 authorizing = false;
                 if (res.ok) {
                     _storeTokens(res.data);
+                    authorized();
                 } else {
                     errorMessage = _classify(res);
                 }

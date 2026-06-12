@@ -37,7 +37,69 @@ Singleton {
         }
     }
 
+    // Single-auth path: the widget's PKCE token carries the "streaming"
+    // scope, which librespot accepts as token credentials (auth_type 3).
+    // Seeding spotifyd's credentials file with it skips the separate
+    // `spotifyd authenticate` browser round-trip; on first login librespot
+    // swaps it for reusable stored credentials, so expiry doesn't matter.
+    function seedFromWidgetAuth() {
+        if (hasCredentials)
+            return;
+        SpotifyAuth.withToken((token, err) => {
+            if (!token)
+                return;
+            const xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState !== XMLHttpRequest.DONE)
+                    return;
+                if (xhr.status !== 200)
+                    return;
+                let username = "";
+                try {
+                    username = JSON.parse(xhr.responseText).id || "";
+                } catch (e) {}
+                if (username === "")
+                    return;
+                seedProc.creds = JSON.stringify({
+                    username: username,
+                    auth_type: 3,
+                    auth_data: Qt.btoa(token)
+                });
+                seedProc.running = true;
+            };
+            xhr.open("GET", "https://api.spotify.com/v1/me");
+            xhr.setRequestHeader("Authorization", "Bearer " + token);
+            xhr.send();
+        });
+    }
+
+    Connections {
+        target: SpotifyAuth
+
+        function onAuthorized() {
+            root.seedFromWidgetAuth();
+        }
+    }
+
+    Process {
+        id: seedProc
+
+        property string creds: ""
+
+        command: ["/bin/sh", "-c",
+            "mkdir -p \"$HOME/.cache/spotifyd/oauth\" && umask 077 && "
+            + "printf '%s' \"$MW_SPOTIFYD_CREDS\" > \"$HOME/.cache/spotifyd/oauth/credentials.json\""]
+        environment: ({ MW_SPOTIFYD_CREDS: seedProc.creds })
+        onExited: code => {
+            if (code === 0) {
+                restartProc.running = false;
+                restartProc.running = true;
+            }
+        }
+    }
+
     FileView {
+        id: credsFile
         path: Quickshell.env("HOME") + "/.cache/spotifyd/oauth/credentials.json"
         watchChanges: true
         preload: true
@@ -81,7 +143,11 @@ Singleton {
     Process {
         id: restartProc
         command: ["systemctl", "--user", "restart", "spotifyd"]
-        onExited: root.refreshState()
+        onExited: {
+            root.refreshState();
+            // watcher can miss file *creation*; re-read explicitly
+            credsFile.reload();
+        }
     }
 
     Process {
