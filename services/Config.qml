@@ -44,8 +44,11 @@ Singleton {
 
             property JsonObject window: JsonObject {
                 // top-left | top | top-right | bottom-left | bottom | bottom-right
-                // | floating (free position via marginTop/marginLeft, draggable)
+                // | floating (free position via floatX/floatY, draggable)
                 property string anchor: "top-right"
+                // floating-mode position (px from the work area's top-left)
+                property int floatX: 60
+                property int floatY: 60
                 // output name (e.g. "DP-1"); empty = compositor default
                 property string monitor: ""
                 property int width: 560

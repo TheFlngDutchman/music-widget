@@ -27,10 +27,10 @@ PanelWindow {
     }
 
     margins {
-        top: Config.window.marginTop
-        right: Config.window.marginRight
-        bottom: Config.window.marginBottom
-        left: Config.window.marginLeft
+        top: win.floating ? Config.window.floatY : Config.window.marginTop
+        right: win.floating ? 0 : Config.window.marginRight
+        bottom: win.floating ? 0 : Config.window.marginBottom
+        left: win.floating ? Config.window.floatX : Config.window.marginLeft
     }
 
     screen: {
@@ -87,14 +87,14 @@ PanelWindow {
             property bool haveBase: false
             property int baseX: 0
             property int baseY: 0
-            property int baseMarginLeft: 0
-            property int baseMarginTop: 0
+            property int basePosX: 0
+            property int basePosY: 0
 
             onPressedChanged: {
                 haveBase = false;
                 if (pressed) {
-                    baseMarginLeft = Config.window.marginLeft;
-                    baseMarginTop = Config.window.marginTop;
+                    basePosX = Config.window.floatX;
+                    basePosY = Config.window.floatY;
                 }
             }
         }
@@ -127,10 +127,10 @@ PanelWindow {
                         dragArea.haveBase = true;
                         return;
                     }
-                    Config.window.marginLeft = Math.max(0,
-                        dragArea.baseMarginLeft + (x - dragArea.baseX));
-                    Config.window.marginTop = Math.max(0,
-                        dragArea.baseMarginTop + (y - dragArea.baseY));
+                    Config.window.floatX = Math.max(0,
+                        dragArea.basePosX + (x - dragArea.baseX));
+                    Config.window.floatY = Math.max(0,
+                        dragArea.basePosY + (y - dragArea.baseY));
                 }
             }
         }

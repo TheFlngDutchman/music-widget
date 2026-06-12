@@ -170,15 +170,31 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 visible: Config.window.anchor === "floating"
-                spacing: 4
+                spacing: 6
 
                 RowLabel { text: "" }
 
+                StyledText { text: "X"; opacity: 0.35; font.pixelSize: Theme.fontSize - 2 }
+                Stepper {
+                    value: Config.window.floatX
+                    to: 4000
+                    step: 10
+                    onStepped: v => Config.window.floatX = v
+                }
+
+                StyledText { text: "Y"; opacity: 0.35; font.pixelSize: Theme.fontSize - 2 }
+                Stepper {
+                    value: Config.window.floatY
+                    to: 4000
+                    step: 10
+                    onStepped: v => Config.window.floatY = v
+                }
+
                 StyledText {
                     Layout.fillWidth: true
-                    text: "drag the widget by its header to move it"
+                    text: "or drag the header"
                     font.pixelSize: Theme.fontSize - 2
-                    opacity: 0.35
+                    opacity: 0.3
                 }
             }
 
@@ -208,6 +224,7 @@ Item {
 
             RowLayout {
                 spacing: 6
+                visible: Config.window.anchor !== "floating"
 
                 RowLabel { text: "Margins" }
 
