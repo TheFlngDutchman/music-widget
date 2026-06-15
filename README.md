@@ -14,6 +14,7 @@ Formerly a Python/GTK4 app — rewritten in QML for instant response times: the 
 - **Cava visualizer** — 7 canvas styles (bars, wave, blocks, flame, mirror, dots, ring) with peak-hold caps; sensitivity, bar count, mono/stereo, and smoothing tweakable live from a gear popover; cava only runs while the tab is visible
 - **Spotify browser** — playlists, Liked Songs, Saved Albums, Recently Played, queue (with add-to-queue on every row), catalog search, infinite scroll, breadcrumb navigation; responses cached with per-section TTLs
 - **Spotify streaming** — headless playback through spotifyd running as a systemd user service; the widget seeds its credentials from your one Spotify login, no second auth flow
+- **Track download** — the download button on any Spotify track fetches the best-match audio via `yt-dlp` into `~/Music` as an MP3, with cover art and title/artist metadata embedded
 - **Local / MPD browser** — browse and play your music directory via mpc
 - **Settings tab** — window anchor/size/margins/monitor (including a free-floating mode with drag-to-move), font, album-art size, per-color theme overrides, Spotify and spotifyd status — all applied live and written back to the config file
 - **Theme-aware** — follows the [Omarchy](https://omarchy.org) theme live (no restart), with optional per-color overrides

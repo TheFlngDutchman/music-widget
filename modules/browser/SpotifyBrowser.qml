@@ -354,8 +354,14 @@ Item {
                     return;
                 }
                 downloadProcess._step = "dl";
+                // --embed-thumbnail writes the cover into the mp3's ID3 APIC
+                // frame (via ffmpeg); convert to jpg first since webp APIC
+                // art is mishandled by many players. --embed-metadata tags
+                // title/artist/etc.
                 downloadProcess.command = ["yt-dlp", "-x", "--audio-format", "mp3",
                                            "--audio-quality", "0", "--no-playlist",
+                                           "--embed-thumbnail", "--embed-metadata",
+                                           "--convert-thumbnails", "jpg",
                                            "ytsearch1:" + downloadProcess._query,
                                            "-o", downloadProcess._musicDir + "/%(title)s.%(ext)s"];
                 downloadProcess.running = true;
