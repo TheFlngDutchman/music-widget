@@ -241,7 +241,7 @@ tmpl = '''\
     "tooltip": false
   }},
   "custom/music-next": {{
-    "format": "   {next}",
+    "format": "   {next}  ",
     "on-click": "playerctl -p \\"$(music-waybar-player)\\" next",
     "tooltip": false
   }},
@@ -249,6 +249,7 @@ tmpl = '''\
     "exec": "music-waybar-title",
     "return-type": "raw",
     "max-length": 30,
+    "margin-left": 6,
     "margin-right": 10,
     "on-click": "music-widget",
     "tooltip": false
