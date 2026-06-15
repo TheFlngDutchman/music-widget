@@ -163,7 +163,12 @@ ok "mpd enabled ($(systemctl --user is-active mpd.service || true))"
 # ── 4c. mpd-mpris ──────────────────────────────────────────────────────
 # mpd has no built-in MPRIS interface; mpd-mpris bridges it onto D-Bus so
 # playerctl (Waybar) and the widget's Mpris service can see and control it.
-systemctl --user enable --now mpd-mpris.service >/dev/null 2>&1 || true
+# enable + restart (not enable --now): mpd-mpris connects to mpd at startup,
+# so if it was already running before mpd came up it stays connected to
+# nothing — restart forces it to reconnect to the now-running mpd. Its unit
+# already orders After=mpd.service, so login ordering is fine.
+systemctl --user enable mpd-mpris.service >/dev/null 2>&1 || true
+systemctl --user restart mpd-mpris.service >/dev/null 2>&1 || true
 ok "mpd-mpris enabled ($(systemctl --user is-active mpd-mpris.service || true))"
 
 # ── 5. Config migration (old TOML → JSON) ──────────────────────────────
