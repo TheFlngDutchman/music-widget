@@ -16,6 +16,7 @@ ListView {
     // the receiver can't find `item` in its source array by identity
     signal activated(var item, int index)
     signal queueRequested(var item)
+    signal downloadRequested(var item)
     signal loadMore
 
     clip: true
@@ -45,7 +46,7 @@ ListView {
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.left
             anchors.leftMargin: 4
-            anchors.right: queueBtn.visible ? queueBtn.left : parent.right
+            anchors.right: downloadBtn.visible ? downloadBtn.left : (queueBtn.visible ? queueBtn.left : parent.right)
             anchors.rightMargin: 6
             spacing: 8
 
@@ -92,6 +93,28 @@ ListView {
         }
 
         Text {
+            id: downloadBtn
+            anchors.right: queueBtn.left
+            anchors.rightMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            text: "\uF019"
+            color: downloadMouse.containsMouse ? Theme.accent : Theme.fg
+            opacity: downloadMouse.containsMouse ? 1 : (rowMouse.containsMouse ? 0.5 : 0)
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize + 1
+            visible: row.modelData.kind === "track"
+
+            MouseArea {
+                id: downloadMouse
+                anchors.fill: parent
+                anchors.margins: -6
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: list.downloadRequested(row.modelData)
+            }
+        }
+
+        Text {
             id: queueBtn
             anchors.right: parent.right
             anchors.rightMargin: 8
@@ -116,7 +139,7 @@ ListView {
         MouseArea {
             id: rowMouse
             anchors.fill: parent
-            anchors.rightMargin: queueBtn.visible ? 30 : 0
+            anchors.rightMargin: (downloadBtn.visible ? 28 : 0) + (queueBtn.visible ? 28 : 0)
             hoverEnabled: true
             cursorShape: row.interactive ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: {

@@ -24,7 +24,7 @@ DESKTOP_FILE="${APPS_DIR}/music-widget.desktop"
 SPOTIFYD_CONF="${HOME}/.config/spotifyd/spotifyd.conf"
 OLD_VENV="${HOME}/.local/share/music-widget/venv"
 
-PKGS=(quickshell cava spotifyd mpd mpc playerctl)
+PKGS=(quickshell cava spotifyd mpd mpc playerctl yt-dlp ffmpeg)
 
 color() { printf "\033[%sm%s\033[0m" "$1" "$2"; }
 info()  { echo "$(color "1;34" "→") $*"; }

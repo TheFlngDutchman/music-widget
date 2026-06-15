@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
 import "../../services"
 import "../components"
 
@@ -328,6 +330,44 @@ Item {
         });
     }
 
+    function downloadTrack(item) {
+        downloadProcess._step = "mkdir";
+        var home = Quickshell.env("HOME");
+        downloadProcess._musicDir = home + "/Music";
+        downloadProcess._query = item.label + " " + (item.sub || "");
+        downloadProcess.command = ["mkdir", "-p", downloadProcess._musicDir];
+        downloadProcess.running = true;
+        flash = "Downloading: " + item.label + "…";
+    }
+
+    Process {
+        id: downloadProcess
+        property string _step: ""
+        property string _musicDir: ""
+        property string _query: ""
+        onExited: (exitCode, exitStatus) => {
+            if (downloadProcess._step === "mkdir") {
+                if (exitCode !== 0) {
+                    sb.flash = "Failed to create Music directory";
+                    flashClear.restart();
+                    return;
+                }
+                downloadProcess._step = "dl";
+                downloadProcess.command = ["yt-dlp", "-x", "--audio-format", "mp3",
+                                           "--audio-quality", "0", "--no-playlist",
+                                           "ytsearch1:" + downloadProcess._query,
+                                           "-o", downloadProcess._musicDir + "/%(title)s.%(ext)s"];
+                downloadProcess.running = true;
+            } else {
+                sb.flash = exitCode === 0 ? "Download complete" : "Download failed";
+                flashClear.restart();
+                downloadProcess._step = "";
+                downloadProcess._musicDir = "";
+                downloadProcess._query = "";
+            }
+        }
+    }
+
     function activate(item, rowIndex) {
         if (item.kind === "track")
             playTrack(item, rowIndex);
@@ -461,6 +501,7 @@ Item {
                         flashClear.restart();
                 });
             }
+            onDownloadRequested: item => sb.downloadTrack(item)
             onLoadMore: {
                 if (sb.fetchMoreFn && !sb.loadingMore) {
                     sb.loadingMore = true;

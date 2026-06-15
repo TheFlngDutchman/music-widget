@@ -76,8 +76,8 @@ Item {
     }
 
     onVisibleChanged: {
-        if (visible && entries.length === 0)
-            load("");
+        if (visible)
+            load(path);
     }
 
     Process {
@@ -85,6 +85,7 @@ Item {
         property var buf: []
 
         stdout: SplitParser {
+            splitMarker: "\n"
             onRead: data => {
                 const line = data.trim();
                 if (line !== "")
@@ -145,6 +146,12 @@ Item {
                 font.bold: true
                 font.pixelSize: Theme.fontSize - 1
                 opacity: 0.6
+            }
+
+            IconButton {
+                text: "󰑓"
+                textSize: 12
+                onClicked: lb.load(lb.path)
             }
         }
 
