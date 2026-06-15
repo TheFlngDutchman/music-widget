@@ -29,7 +29,7 @@ Formerly a Python/GTK4 app — rewritten in QML for instant response times: the 
 
 ### Quickshell compatibility
 
-The widget is a self-contained Quickshell config at `~/.config/quickshell/music-widget`, run as its own instance (`qs -c music-widget`). It does **not** become your shell: it's a plain layer-shell surface with no exclusive zone, so it coexists with Waybar today and won't conflict with any other Quickshell config you run (e.g. when Omarchy moves its bar to Quickshell). One caveat: the `quickshell` package tracks Qt closely — if the widget fails to start after a system upgrade, reinstall/rebuild `quickshell` against the new Qt.
+The widget is a self-contained Quickshell config at `~/.config/quickshell/music-widget`, run as its own instance by **path** (`qs -p ~/.config/quickshell/music-widget`). Path mode is deliberate: if you also run a Quickshell bar, its `~/.config/quickshell/shell.qml` registers a 'default' config and Quickshell then ignores all *named* subdir configs — so `qs -c music-widget` would fail with "config not found". Loading by path sidesteps that, and it does **not** become your shell: it's a plain layer-shell surface with no exclusive zone, so it coexists with Waybar and with an Omarchy Quickshell bar. One caveat: the `quickshell` package tracks Qt closely — if the widget fails to start after a system upgrade, reinstall/rebuild `quickshell` against the new Qt.
 
 ## Install
 
@@ -50,9 +50,9 @@ Idempotent and safe to re-run:
 Toggle from anywhere:
 
 ```bash
-music-widget                                    # wrapper, starts the service if needed
-qs -c music-widget ipc call window toggle       # direct IPC
-qs -c music-widget ipc call window tab 2        # open straight to a tab (0–3)
+music-widget                                                      # wrapper, starts the service if needed
+qs -p ~/.config/quickshell/music-widget ipc call window toggle    # direct IPC
+qs -p ~/.config/quickshell/music-widget ipc call window tab 2     # open straight to a tab (0–3)
 ```
 
 ## Configuration
