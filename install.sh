@@ -129,7 +129,38 @@ if [ ! -f "${HOME}/.cache/spotifyd/oauth/credentials.json" ]; then
     warn "spotifyd has no credentials yet — use Settings → spotifyd → Authenticate in the widget"
 fi
 
-# ── 4b. mpd-mpris ──────────────────────────────────────────────────────
+# ── 4b. mpd ────────────────────────────────────────────────────────────
+# The Local browser plays through mpd (via mpc), and its "Start" button runs
+# `systemctl --user start mpd` — which needs a user config to start at all.
+MPD_CONF="${HOME}/.config/mpd/mpd.conf"
+mkdir -p "${HOME}/.local/share/mpd" "${HOME}/Music"
+if [ ! -f "$MPD_CONF" ]; then
+    info "Seeding $MPD_CONF"
+    mkdir -p "$(dirname "$MPD_CONF")"
+    cat > "$MPD_CONF" <<'EOF'
+music_directory     "~/Music"
+db_file             "~/.local/share/mpd/database"
+log_file            "~/.local/share/mpd/log"
+pid_file            "~/.local/share/mpd/pid"
+state_file          "~/.local/share/mpd/state"
+bind_to_address     "127.0.0.1"
+port                "6600"
+
+audio_output {
+    type  "pipewire"
+    name  "PipeWire Output"
+}
+
+auto_update "yes"
+EOF
+    ok "Wrote mpd.conf"
+else
+    ok "mpd.conf already exists — preserved"
+fi
+systemctl --user enable --now mpd.service >/dev/null 2>&1 || true
+ok "mpd enabled ($(systemctl --user is-active mpd.service || true))"
+
+# ── 4c. mpd-mpris ──────────────────────────────────────────────────────
 # mpd has no built-in MPRIS interface; mpd-mpris bridges it onto D-Bus so
 # playerctl (Waybar) and the widget's Mpris service can see and control it.
 systemctl --user enable --now mpd-mpris.service >/dev/null 2>&1 || true

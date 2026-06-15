@@ -42,7 +42,7 @@ Idempotent and safe to re-run:
 1. Checks system deps (installs with `--install-deps`).
 2. Symlinks the repo to `~/.config/quickshell/music-widget`.
 3. Installs and enables `music-widget.service` (user) so the widget is always resident.
-4. Seeds `~/.config/spotifyd/spotifyd.conf` (device "Music Widget", MPRIS on) and enables spotifyd, and enables the `mpd-mpris` user service so MPD is visible over MPRIS.
+4. Seeds `~/.config/spotifyd/spotifyd.conf` (device "Music Widget", MPRIS on) and enables spotifyd; seeds `~/.config/mpd/mpd.conf` (music dir `~/Music`, PipeWire output) and enables the `mpd` and `mpd-mpris` user services so the Local browser works and MPD is visible over MPRIS.
 5. Migrates an old `config.toml` to `config.json` if you're upgrading from the GTK version.
 6. Installs the `music-widget` toggle command and `music-waybar-title`.
 7. Injects the Waybar modules if missing (see `docs/waybar.jsonc`).
