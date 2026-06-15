@@ -23,9 +23,29 @@ ListView {
     spacing: 1
     boundsBehavior: Flickable.StopAtBounds
 
+    // The model is a plain JS array that gets wholesale-reassigned on every
+    // append (see appendRows in the browsers), which makes ListView rebuild
+    // and snap contentY to 0. Capture the offset when a load-more fires —
+    // we're at atYEnd, so it's the old max scroll — and restore it once the
+    // new rows land (count grows). On navigation the new list is short, so
+    // the clamp drops the restore to ~top, which is what we want there.
+    property real _restoreY: -1
+
     onAtYEndChanged: {
-        if (atYEnd && canLoadMore && count > 0)
+        if (atYEnd && canLoadMore && count > 0) {
+            _restoreY = contentY;
             loadMore();
+        }
+    }
+
+    onCountChanged: {
+        if (_restoreY >= 0) {
+            const y = _restoreY;
+            _restoreY = -1;
+            Qt.callLater(() => {
+                contentY = Math.min(y, Math.max(0, contentHeight - height));
+            });
+        }
     }
 
     delegate: Rectangle {

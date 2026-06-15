@@ -24,7 +24,7 @@ DESKTOP_FILE="${APPS_DIR}/music-widget.desktop"
 SPOTIFYD_CONF="${HOME}/.config/spotifyd/spotifyd.conf"
 OLD_VENV="${HOME}/.local/share/music-widget/venv"
 
-PKGS=(quickshell cava spotifyd mpd mpc playerctl yt-dlp ffmpeg)
+PKGS=(quickshell cava spotifyd mpd mpc mpd-mpris playerctl yt-dlp ffmpeg)
 
 color() { printf "\033[%sm%s\033[0m" "$1" "$2"; }
 info()  { echo "$(color "1;34" "→") $*"; }
@@ -126,6 +126,12 @@ if [ ! -f "${HOME}/.cache/spotifyd/oauth/credentials.json" ]; then
     warn "spotifyd has no credentials yet — use Settings → spotifyd → Authenticate in the widget"
 fi
 
+# ── 4b. mpd-mpris ──────────────────────────────────────────────────────
+# mpd has no built-in MPRIS interface; mpd-mpris bridges it onto D-Bus so
+# playerctl (Waybar) and the widget's Mpris service can see and control it.
+systemctl --user enable --now mpd-mpris.service >/dev/null 2>&1 || true
+ok "mpd-mpris enabled ($(systemctl --user is-active mpd-mpris.service || true))"
+
 # ── 5. Config migration (old TOML → JSON) ──────────────────────────────
 OLD_TOML="$CFG_DIR/config.toml"
 NEW_JSON="$CFG_DIR/config.json"
@@ -175,7 +181,9 @@ EOF
 chmod +x "$BIN_DIR/music-widget"
 
 install -m 755 "$REPO_DIR/bin/music-waybar-title" "$BIN_DIR/music-waybar-title"
-ok "Installed music-widget and music-waybar-title"
+install -m 755 "$REPO_DIR/bin/music-waybar-player" "$BIN_DIR/music-waybar-player"
+install -m 755 "$REPO_DIR/bin/music-waybar-status" "$BIN_DIR/music-waybar-status"
+ok "Installed music-widget and music-waybar helpers"
 
 mkdir -p "$APPS_DIR"
 install -m 644 "$REPO_DIR/data/music-widget.desktop" "$DESKTOP_FILE"
@@ -218,25 +226,23 @@ names = [
 ]
 
 _prev = chr(0xF04AE)
-_pause = chr(0xF03E4)
-_play = chr(0xF040A)
 _next = chr(0xF04AD)
 
 tmpl = '''\
   "custom/music-prev": {{
     "format": "{prev}   ",
-    "on-click": "playerctl previous",
+    "on-click": "playerctl -p \\"$(music-waybar-player)\\" previous",
     "tooltip": false
   }},
   "custom/music-play": {{
-    "exec": "playerctl status -F | sed -u 's/Playing/{pause}/;s/Paused/{play}/;s/Stopped/{play}/'",
+    "exec": "music-waybar-status",
     "return-type": "raw",
-    "on-click": "playerctl play-pause",
+    "on-click": "playerctl -p \\"$(music-waybar-player)\\" play-pause",
     "tooltip": false
   }},
   "custom/music-next": {{
     "format": "   {next}",
-    "on-click": "playerctl next",
+    "on-click": "playerctl -p \\"$(music-waybar-player)\\" next",
     "tooltip": false
   }},
   "custom/music-title": {{
@@ -248,7 +254,7 @@ tmpl = '''\
     "tooltip": false
   }}'''
 
-defs = tmpl.format(prev=_prev, pause=_pause, play=_play, next=_next)
+defs = tmpl.format(prev=_prev, next=_next)
 
 inject = ',\n    '.join(names) + ','
 new = re.sub(

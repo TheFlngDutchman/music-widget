@@ -302,6 +302,7 @@ Item {
     // ---- playback ----
 
     function playTrack(item, rowIndex) {
+        stopMpdProc.running = true;
         let body;
         if (item.contextUri !== "") {
             body = { context_uri: item.contextUri, offset: { position: item.index } };
@@ -366,6 +367,12 @@ Item {
                 downloadProcess._query = "";
             }
         }
+    }
+
+    Process {
+        id: stopMpdProc
+        command: ["mpc", "-q", "stop"]
+        running: false
     }
 
     function activate(item, rowIndex) {

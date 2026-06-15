@@ -27,7 +27,8 @@ info "Removing quickshell config link"
 ok "Removed $QS_LINK"
 
 info "Removing launchers"
-rm -f "$BIN_DIR/music-widget" "$BIN_DIR/music-waybar-title"
+rm -f "$BIN_DIR/music-widget" "$BIN_DIR/music-waybar-title" \
+      "$BIN_DIR/music-waybar-player" "$BIN_DIR/music-waybar-status"
 ok "Removed launchers"
 
 if [ -e "$DESKTOP_FILE" ]; then
@@ -89,6 +90,18 @@ if systemctl --user is-enabled spotifyd.service &>/dev/null; then
             ok "Disabled spotifyd"
             ;;
         *) info "Left spotifyd enabled" ;;
+    esac
+fi
+
+if systemctl --user is-enabled mpd-mpris.service &>/dev/null; then
+    echo
+    read -r -p "Disable mpd-mpris too? Other tools may use it. [y/N] " reply
+    case "${reply,,}" in
+        y|yes)
+            systemctl --user disable --now mpd-mpris.service
+            ok "Disabled mpd-mpris"
+            ;;
+        *) info "Left mpd-mpris enabled" ;;
     esac
 fi
 

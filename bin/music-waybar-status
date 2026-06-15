@@ -1,0 +1,28 @@
+#!/bin/bash
+# Stream the play/pause icon for the active MPRIS player.
+# Polls once a second and re-selects the active player every tick (same
+# priority as music-waybar-player), so the icon follows playback across
+# players and never goes blank on a Stopped player.
+#   󰏤 = pause glyph (shown while Playing)   󰐊 = play glyph (otherwise)
+
+pick_player() {
+    for p in $(playerctl -l 2>/dev/null); do
+        [ "$(playerctl -p "$p" status 2>/dev/null)" = "Playing" ] && { echo "$p"; return; }
+    done
+    for p in $(playerctl -l 2>/dev/null); do
+        [ "$(playerctl -p "$p" status 2>/dev/null)" = "Paused" ] && { echo "$p"; return; }
+    done
+    playerctl -l 2>/dev/null | head -1
+}
+
+last=""
+while true; do
+    player=$(pick_player)
+    if [ "$(playerctl -p "$player" status 2>/dev/null)" = "Playing" ]; then
+        out="󰏤"
+    else
+        out="󰐊"
+    fi
+    [ "$out" != "$last" ] && { echo "$out"; last="$out"; }
+    sleep 1
+done

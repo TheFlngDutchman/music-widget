@@ -61,7 +61,8 @@ Item {
 
     function play(entry) {
         playProc.command = ["/bin/sh", "-c",
-            "mpc -q clear && mpc -q add " + _shq(path === "" ? "/" : path)
+            "playerctl -p spotifyd stop 2>/dev/null; mpc -q clear"
+            + " && mpc -q add " + _shq(path === "" ? "/" : path)
             + " && pos=$(mpc playlist -f '%file%' | grep -nxF " + _shq(entry.full)
             + " | head -1 | cut -d: -f1) && mpc -q play \"${pos:-1}\""];
         playProc.running = true;

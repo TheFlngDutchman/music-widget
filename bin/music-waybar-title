@@ -1,18 +1,27 @@
 #!/bin/bash
-# Stream the current track title for Waybar with idle detection.
-# Shows 󰝚 (music note) when nothing is playing, the track title otherwise.
-# Detects any MPRIS player — no --player restriction.
+# Stream the active MPRIS player's track title for Waybar.
+# Polls once a second and re-selects the active player every tick, so it
+# follows playback as it moves between players (spotifyd, mpd, browsers …)
+# instead of getting stuck on whichever one happened to start first.
+# Shows 󰝚 (music note) when nothing is playing.
 
-while true; do
-    playerctl metadata title 2>/dev/null | while read -r t; do
-        if [ -n "$t" ]; then
-            echo "$t"
-            # Got a title — now stream updates in real time
-            playerctl metadata title -F 2>/dev/null | while read -r s; do
-                [ -n "$s" ] && echo "$s" || echo "󰝚"
-            done
-        fi
+# Pick the most relevant player: Playing > Paused > Stopped/first available.
+pick_player() {
+    for p in $(playerctl -l 2>/dev/null); do
+        [ "$(playerctl -p "$p" status 2>/dev/null)" = "Playing" ] && { echo "$p"; return; }
     done
-    echo "󰝚"
-    sleep 5
+    for p in $(playerctl -l 2>/dev/null); do
+        [ "$(playerctl -p "$p" status 2>/dev/null)" = "Paused" ] && { echo "$p"; return; }
+    done
+    playerctl -l 2>/dev/null | head -1
+}
+
+last=""
+while true; do
+    player=$(pick_player)
+    title=""
+    [ -n "$player" ] && title=$(playerctl -p "$player" metadata title 2>/dev/null)
+    out="${title:-󰝚}"
+    [ "$out" != "$last" ] && { echo "$out"; last="$out"; }
+    sleep 1
 done

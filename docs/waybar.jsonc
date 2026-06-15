@@ -14,20 +14,20 @@
 
   "custom/music-prev": {
     "format": "󰒮   ",
-    "on-click": "playerctl previous",
+    "on-click": "playerctl -p \"$(music-waybar-player)\" previous",
     "tooltip": false
   },
 
   "custom/music-play": {
-    "exec": "playerctl status -F | sed -u 's/Playing/󰏤/;s/Paused/󰐊/;s/Stopped/󰐊/'",
+    "exec": "music-waybar-status",
     "return-type": "raw",
-    "on-click": "playerctl play-pause",
+    "on-click": "playerctl -p \"$(music-waybar-player)\" play-pause",
     "tooltip": false
   },
 
   "custom/music-next": {
     "format": "   󰒭  ",
-    "on-click": "playerctl next",
+    "on-click": "playerctl -p \"$(music-waybar-player)\" next",
     "tooltip": false
   },
 

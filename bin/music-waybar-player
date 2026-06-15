@@ -1,0 +1,12 @@
+#!/bin/bash
+# Print the name of the most relevant MPRIS player for Waybar to control.
+# Priority: Playing > Paused > Stopped/first available.
+# Used by the prev/play/next on-click handlers so they all target the same
+# player the title and status modules are showing.
+for p in $(playerctl -l 2>/dev/null); do
+    [ "$(playerctl -p "$p" status 2>/dev/null)" = "Playing" ] && { echo "$p"; exit 0; }
+done
+for p in $(playerctl -l 2>/dev/null); do
+    [ "$(playerctl -p "$p" status 2>/dev/null)" = "Paused" ] && { echo "$p"; exit 0; }
+done
+playerctl -l 2>/dev/null | head -1
