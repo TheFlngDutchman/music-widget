@@ -14,20 +14,20 @@
 
   "custom/music-prev": {
     "format": "󰒮   ",
-    "on-click": "playerctl --player=spotifyd,spotify,mpd previous",
+    "on-click": "playerctl previous",
     "tooltip": false
   },
 
   "custom/music-play": {
-    "exec": "playerctl --player=spotifyd,spotify,mpd status -F | sed -u 's/Playing/󰏤/;s/Paused/󰐊/;s/Stopped/󰐊/'",
+    "exec": "playerctl status -F | sed -u 's/Playing/󰏤/;s/Paused/󰐊/;s/Stopped/󰐊/'",
     "return-type": "raw",
-    "on-click": "playerctl --player=spotifyd,spotify,mpd play-pause",
+    "on-click": "playerctl play-pause",
     "tooltip": false
   },
 
   "custom/music-next": {
     "format": "   󰒭  ",
-    "on-click": "playerctl --player=spotifyd,spotify,mpd next",
+    "on-click": "playerctl next",
     "tooltip": false
   },
 
@@ -35,6 +35,7 @@
     "exec": "music-waybar-title",
     "return-type": "raw",
     "max-length": 30,
+    "margin-right": 10,
     "on-click": "music-widget",
     "tooltip": false
   }

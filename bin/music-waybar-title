@@ -1,12 +1,18 @@
 #!/bin/bash
-# Stream the current track title for Waybar.
-# Loops so it picks up players that connect after the bar starts.
+# Stream the current track title for Waybar with idle detection.
+# Shows 󰝚 (music note) when nothing is playing, the track title otherwise.
+# Detects any MPRIS player — no --player restriction.
 
-echo "󰝚"
 while true; do
-    playerctl --player=spotifyd,spotify,mpd metadata title -F 2>/dev/null | \
-        awk '{print ($0 == "" ? "󰝚" : $0); fflush()}'
-    # playerctl exited (no player or player disconnected) — retry after a pause.
+    playerctl metadata title 2>/dev/null | while read -r t; do
+        if [ -n "$t" ]; then
+            echo "$t"
+            # Got a title — now stream updates in real time
+            playerctl metadata title -F 2>/dev/null | while read -r s; do
+                [ -n "$s" ] && echo "$s" || echo "󰝚"
+            done
+        fi
+    done
     echo "󰝚"
-    sleep 2
+    sleep 5
 done

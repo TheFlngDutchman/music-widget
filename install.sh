@@ -194,10 +194,9 @@ inject_waybar() {
 
     if python3 -c "
 import re, sys
-text = open('$WAYBAR_CFG').read()
-sys.exit(0 if re.search(r'\"custom/music-title\"\s*:', text) else 1)
+sys.exit(0 if re.search(r'\"custom/music-title\"\s*:', open('$WAYBAR_CFG').read()) else 1)
 " 2>/dev/null; then
-        ok "Waybar already has music-widget modules — nothing changed"
+        ok "Waybar already has music-widget modules"
         return
     fi
 
@@ -218,30 +217,38 @@ names = [
     '"custom/music-title"',
 ]
 
-defs = '''\
-  "custom/music-prev": {
-    "format": "󰒮   ",
-    "on-click": "playerctl --player=spotifyd,spotify,mpd previous",
+_prev = chr(0xF04AE)
+_pause = chr(0xF03E4)
+_play = chr(0xF040A)
+_next = chr(0xF04AD)
+
+tmpl = '''\
+  "custom/music-prev": {{
+    "format": "{prev}   ",
+    "on-click": "playerctl previous",
     "tooltip": false
-  },
-  "custom/music-play": {
-    "exec": "playerctl --player=spotifyd,spotify,mpd status -F | sed -u 's/Playing/󰏤/;s/Paused/󰐊/;s/Stopped/󰐊/'",
+  }},
+  "custom/music-play": {{
+    "exec": "playerctl status -F | sed -u 's/Playing/{pause}/;s/Paused/{play}/;s/Stopped/{play}/'",
     "return-type": "raw",
-    "on-click": "playerctl --player=spotifyd,spotify,mpd play-pause",
+    "on-click": "playerctl play-pause",
     "tooltip": false
-  },
-  "custom/music-next": {
-    "format": "   󰒭  ",
-    "on-click": "playerctl --player=spotifyd,spotify,mpd next",
+  }},
+  "custom/music-next": {{
+    "format": "   {next}",
+    "on-click": "playerctl next",
     "tooltip": false
-  },
-  "custom/music-title": {
+  }},
+  "custom/music-title": {{
     "exec": "music-waybar-title",
     "return-type": "raw",
     "max-length": 30,
+    "margin-right": 10,
     "on-click": "music-widget",
     "tooltip": false
-  }'''
+  }}'''
+
+defs = tmpl.format(prev=_prev, pause=_pause, play=_play, next=_next)
 
 inject = ',\n    '.join(names) + ','
 new = re.sub(
