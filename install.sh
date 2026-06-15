@@ -255,6 +255,7 @@ tmpl = '''\
   "custom/music-title": {{
     "exec": "music-waybar-title",
     "return-type": "raw",
+    "format": "{{}}  ",
     "max-length": 30,
     "margin-left": 6,
     "margin-right": 10,
