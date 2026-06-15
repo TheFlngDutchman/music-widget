@@ -61,7 +61,15 @@ Item {
 
     function play(entry) {
         playProc.command = ["/bin/sh", "-c",
-            "playerctl -p spotifyd stop 2>/dev/null; mpc -q clear"
+            // Silence any Spotify source before starting MPD so the two don't
+            // play at once. Match by name glob — the MPRIS bus name varies
+            // (spotifyd, spotify, spotify.instanceN) — and pause (universally
+            // supported) first, with a best-effort stop on top, since spotifyd
+            // doesn't reliably implement the MPRIS Stop method.
+            "for p in $(playerctl -l 2>/dev/null); do case \"$p\" in "
+            + "spotify*) playerctl -p \"$p\" pause 2>/dev/null; "
+            + "playerctl -p \"$p\" stop 2>/dev/null ;; esac; done; "
+            + "mpc -q clear"
             + " && mpc -q add " + _shq(path === "" ? "/" : path)
             + " && pos=$(mpc playlist -f '%file%' | grep -nxF " + _shq(entry.full)
             + " | head -1 | cut -d: -f1) && mpc -q play \"${pos:-1}\""];
