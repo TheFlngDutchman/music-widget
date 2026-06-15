@@ -64,10 +64,10 @@ PanelWindow {
 
     Rectangle {
         anchors.fill: parent
-        radius: 6
+        radius: 3
         color: Theme.bg
         border.color: Theme.border
-        border.width: 1
+        border.width: 2
 
         // drag-to-move via the header strip in floating mode. Sits below
         // the ColumnLayout, so the header buttons still get their clicks.

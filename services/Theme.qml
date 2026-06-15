@@ -24,8 +24,7 @@ Singleton {
     readonly property color accentFg: pick("", "accent_fg_color", "selection_foreground", "#0c0b0c")
     readonly property color teal: pick(Config.colors.teal, "", "color2", "#87a9b0")
     readonly property color error: pick("", "red", "color1", "#c38b7b")
-    readonly property color border: gtkColors["borders"] !== undefined
-        ? gtkColors["borders"] : Qt.alpha(fg, 0.15)
+    readonly property color border: Qt.alpha(fg, 0.35)
 
     readonly property string fontFamily: Config.font.family
     readonly property int fontSize: Config.font.size
@@ -63,6 +62,24 @@ Singleton {
             }
             if (!changed)
                 break;
+        }
+        // resolve alpha(color, factor) function calls
+        for (const k in defs) {
+            const m2 = defs[k].match(/^alpha\s*\(\s*@?([\w-]+)\s*,\s*([\d.]+)\s*\)\s*$/i);
+            if (m2) {
+                const baseName = m2[1];
+                const alphaVal = parseFloat(m2[2]);
+                const base = defs[baseName];
+                if (base && base.startsWith("#")) {
+                    const hex = base.replace("#", "");
+                    if (hex.length >= 6) {
+                        const r = parseInt(hex.substring(0, 2), 16);
+                        const g = parseInt(hex.substring(2, 4), 16);
+                        const b = parseInt(hex.substring(4, 6), 16);
+                        defs[k] = `rgba(${r},${g},${b},${alphaVal})`;
+                    }
+                }
+            }
         }
         return defs;
     }
