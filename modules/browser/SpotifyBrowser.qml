@@ -126,14 +126,22 @@ Item {
     }
 
     function fetchPlaylistTracks(gen, pid, ctx, offset) {
-        SpotifyApi.get("/playlists/" + pid + "/tracks?limit=100&offset=" + offset, SpotifyApi.ttlLists, res => {
+        // Spotify migrated playlist contents from /tracks (now 403 Forbidden)
+        // to /items, and the track moved from it.track to it.item. Keep the
+        // it.track fallback for any account still serving the old shape.
+        // Index off the original array position (not the post-filter index)
+        // so context_uri playback offsets stay aligned when items are null.
+        SpotifyApi.get("/playlists/" + pid + "/items?limit=100&offset=" + offset, SpotifyApi.ttlLists, res => {
             if (!res.ok) {
                 failRows(gen, res.message);
                 return;
             }
             const rows = res.data.items
-                .filter(it => it && it.track)
-                .map((it, i) => trackRow(it.track, ctx, offset + i));
+                .map((it, i) => {
+                    const t = it && (it.item || it.track);
+                    return t && t.uri ? trackRow(t, ctx, offset + i) : null;
+                })
+                .filter(Boolean);
             const next = offset + res.data.items.length;
             appendRows(gen, rows, res.data.next
                 ? (() => fetchPlaylistTracks(viewGen, pid, ctx, next)) : null);
