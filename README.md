@@ -76,7 +76,10 @@ If spotifyd can't reach Spotify on hostile networks (port 4070 blocked), set `pr
 ## Uninstall
 
 ```bash
-./uninstall.sh
+./uninstall.sh            # interactive
+./uninstall.sh --purge    # remove everything, no prompts
 ```
 
-Removes the service, symlink, launchers and the injected Waybar modules (with a `.bak` backup of your Waybar config). Asks before disabling spotifyd, and optionally removes your config and tokens too — both are kept by default.
+Always removes the service, symlink, launchers and the injected Waybar modules (with a `.bak` backup of your Waybar config). Then it asks before each of: removing the spotifyd setup (service + config + cache), removing the MPD setup (service + config + database), disabling `mpd-mpris`, deleting your widget config and Spotify tokens, and removing the music-widget packages (`spotifyd mpd mpc mpd-mpris cava`).
+
+`--purge` answers yes to all of the above for a complete removal. Either way, your music library (`~/Music`) and the general-purpose packages (`quickshell`, `playerctl`, `ffmpeg`, `yt-dlp`) are never touched.

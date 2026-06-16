@@ -40,7 +40,8 @@ for arg in "$@"; do
             sed -n '2,14p' "$0"
             echo
             echo "Flags:"
-            echo "  --install-deps    install missing packages (omarchy pkg add / pacman)"
+            echo "  --install-deps    install missing official-repo packages via pacman"
+            echo "                    (AUR deps are never auto-installed — you review + build them)"
             exit 0
             ;;
         *) die "Unknown flag: $arg" ;;
@@ -57,11 +58,24 @@ done
 
 if [ ${#missing[@]} -gt 0 ]; then
     if [ "$INSTALL_DEPS" -eq 1 ]; then
-        info "Installing: ${missing[*]}"
-        if command -v omarchy &>/dev/null; then
-            omarchy pkg add "${missing[@]}"
-        else
-            sudo pacman -S --needed --noconfirm "${missing[@]}"
+        # All deps live in the official repos, so install them with pacman
+        # directly. Never route package installs through an AUR helper, and
+        # never --noconfirm an AUR build: AUR PKGBUILDs are user-submitted and
+        # should be reviewed before building. If a dep ever isn't in the
+        # official repos, stop and let the user install it deliberately.
+        repo_pkgs=(); aur_pkgs=()
+        for p in "${missing[@]}"; do
+            if pacman -Si "$p" &>/dev/null; then repo_pkgs+=("$p"); else aur_pkgs+=("$p"); fi
+        done
+        if [ ${#repo_pkgs[@]} -gt 0 ]; then
+            info "Installing from official repos: ${repo_pkgs[*]}"
+            sudo pacman -S --needed --noconfirm "${repo_pkgs[@]}"
+        fi
+        if [ ${#aur_pkgs[@]} -gt 0 ]; then
+            warn "Not in the official repos (would come from the AUR): ${aur_pkgs[*]}"
+            warn "AUR packages are user-submitted — review each PKGBUILD, then install them yourself:"
+            echo "    yay -S ${aur_pkgs[*]}      # inspect the PKGBUILD; do NOT pass --noconfirm"
+            die "Refusing to install AUR packages unattended — see above, then re-run"
         fi
     else
         warn "Missing packages: ${missing[*]}"
