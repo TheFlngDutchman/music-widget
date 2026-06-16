@@ -57,10 +57,13 @@ path = sys.argv[1]
 with open(path) as f:
     content = f.read()
 
-# module definitions: "custom/music-X": { ... } with optional leading comma
+# module definitions: "custom/music-X": { ... } with optional leading comma.
+# The body can contain literal braces (e.g. "format": "{}  "), so match
+# lazily up to the closing brace on its own line rather than [^{}]* — which
+# would stop at the first brace inside a value and leave a keyless ": {".
 content = re.sub(
-    r',?\s*"custom/music-(?:prev|play|next|title)"\s*:\s*\{[^{}]*\}',
-    '', content)
+    r',?\s*"custom/music-(?:prev|play|next|title)"\s*:\s*\{.*?\n[ \t]*\}',
+    '', content, flags=re.DOTALL)
 # module names inside modules-* arrays
 content = re.sub(r'\s*"custom/music-(?:prev|play|next|title)"\s*,?', '\n    ', content)
 # tidy any comma left dangling before a closing bracket
